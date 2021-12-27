@@ -6,7 +6,8 @@ package timestampvm
 import (
 	"errors"
 	"net/http"
-
+	log "github.com/inconshreveable/log15"
+	nativejson "encoding/json"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/json"
@@ -27,8 +28,20 @@ type ProposeBlockArgs struct {
 	Data string `json:"data"`
 }
 
+type SubmitTxArgs struct {
+	Data nativejson.RawMessage `json:"data"`
+}
+
+type EmptyArgs struct {
+
+}
+
+
 // ProposeBlockReply is the reply from function ProposeBlock
 type ProposeBlockReply struct{ Success bool }
+
+type GetMempoolReply struct{ Mempool [][]byte
+	 SubmittedTx []uint8 }
 
 // ProposeBlock is an API method to propose a new block whose data is [args].Data.
 // [args].Data must be a string repr. of a 32 byte array
@@ -41,6 +54,26 @@ func (s *Service) ProposeBlock(_ *http.Request, args *ProposeBlockArgs, reply *P
 	copy(data[:], bytes[:dataLen]) // Copy the bytes in dataSlice to data
 	s.vm.proposeBlock(data)
 	reply.Success = true
+	return nil
+}
+
+func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoolReply) error {
+
+	var x []uint8 = []uint8{}
+	for _, i := range(args.Data) {
+		x = append(x, i)
+	}
+	log.Info("submitting transaction")
+	reply.SubmittedTx = x
+	s.vm.as.SendAppGossip(x)
+	s.vm.mempool2 = append(s.vm.mempool2, x)
+	reply.Mempool = s.vm.mempool2
+	return nil
+}
+
+func (s *Service) GetMempool(_ *http.Request, args *EmptyArgs, reply *GetMempoolReply) error {
+	log.Info("getting mempool")
+	reply.Mempool = s.vm.mempool2
 	return nil
 }
 

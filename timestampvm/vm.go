@@ -55,10 +55,16 @@ type VM struct {
 	// Proposed pieces of data that haven't been put into a block and proposed yet
 	mempool [][dataLen]byte
 
+	mempool2 [][]byte
+
 	// Block ID --> Block
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
 	verifiedBlocks map[ids.ID]*Block
+
+	as common.AppSender
+
+
 }
 
 // Initialize this vm
@@ -75,7 +81,7 @@ func (vm *VM) Initialize(
 	configData []byte,
 	toEngine chan<- common.Message,
 	_ []*common.Fx,
-	_ common.AppSender,
+	as common.AppSender,
 ) error {
 	version, err := vm.Version()
 	if err != nil {
@@ -88,6 +94,8 @@ func (vm *VM) Initialize(
 	vm.ctx = ctx
 	vm.toEngine = toEngine
 	vm.verifiedBlocks = make(map[ids.ID]*Block)
+	vm.as = as
+	vm.mempool2 = [][]byte{}
 
 	// Create new state
 	vm.state = NewState(vm.dbManager.Current().Database, vm)
@@ -356,6 +364,11 @@ func (vm *VM) Disconnected(id ids.ShortID) error {
 
 // This VM doesn't (currently) have any app-specific messages
 func (vm *VM) AppGossip(nodeID ids.ShortID, msg []byte) error {
+	// receive gossip, add to mempool
+	log.Info("receiving app gossip")
+
+	vm.mempool2 = append(vm.mempool2, msg)
+
 	return nil
 }
 
