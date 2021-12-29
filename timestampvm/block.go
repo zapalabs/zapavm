@@ -8,6 +8,11 @@ import (
 	"fmt"
 	"time"
 
+	nativejson "encoding/json"
+
+	log "github.com/inconshreveable/log15"
+
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
@@ -32,7 +37,7 @@ type Block struct {
 	PrntID ids.ID        `serialize:"true" json:"parentID"`  // parent's ID
 	Hght   uint64        `serialize:"true" json:"height"`    // This block's height. The genesis block is at height 0.
 	Tmstmp int64         `serialize:"true" json:"timestamp"` // Time this block was proposed at
-	Dt     [dataLen]byte `serialize:"true" json:"data"`      // Arbitrary data
+	ZBlk nativejson.RawMessage `serialize:"true" json:"zblock"` // zcash block
 
 	id     ids.ID         // hold this block's ID
 	bytes  []byte         // this block's encoded bytes
@@ -41,37 +46,14 @@ type Block struct {
 }
 
 // Verify returns nil iff this block is valid.
-// To be valid, it must be that:
-// b.parent.Timestamp < b.Timestamp <= [local time] + 1 hour
 func (b *Block) Verify() error {
-	// Get [b]'s parent
-	parentID := b.Parent()
-	parent, err := b.vm.getBlock(parentID)
-	if err != nil {
-		return errDatabaseGet
+	if (b.ZBlock != nil) {
+		r := CallZcash("validateBlock", b.ZBlock(), b.vm.GetNodeNum())
+		s := string(r.Result[:])
+		if s != "null" {
+			return fmt.Errorf("validate block returned error " + s)
+		}
 	}
-
-	// Ensure [b]'s height comes right after its parent's height
-	if expectedHeight := parent.Height() + 1; expectedHeight != b.Hght {
-		return fmt.Errorf(
-			"expected block to have height %d, but found %d",
-			expectedHeight,
-			b.Hght,
-		)
-	}
-
-	// Ensure [b]'s timestamp is after its parent's timestamp.
-	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
-		return errTimestampTooEarly
-	}
-
-	// Ensure [b]'s timestamp is not more than an hour
-	// ahead of this node's time
-	if b.Timestamp().Unix() >= time.Now().Add(time.Hour).Unix() {
-		return errTimestampTooLate
-	}
-
-	// Put that block to verified blocks in memory
 	b.vm.verifiedBlocks[b.ID()] = b
 
 	return nil
@@ -89,6 +71,12 @@ func (b *Block) Initialize(bytes []byte, status choices.Status, vm *VM) {
 // Accept sets this block's status to Accepted and sets lastAccepted to this
 // block's ID and saves this info to b.vm.DB
 func (b *Block) Accept() error {
+
+	if (b.ZBlock() != nil) {
+		log.Info("Calling accept block from", "nodeid", b.vm.ctx.NodeID.String(), "nodenum", b.vm.GetNodeNum()) 
+		CallZcash("submitblock", b.ZBlock(), b.vm.GetNodeNum())
+	}
+	
 	b.SetStatus(choices.Accepted) // Change state of this block
 	blkID := b.ID()
 
@@ -140,8 +128,9 @@ func (b *Block) Status() choices.Status { return b.status }
 // Bytes returns the byte repr. of this block
 func (b *Block) Bytes() []byte { return b.bytes }
 
-// Data returns the data of this block
-func (b *Block) Data() [dataLen]byte { return b.Dt }
+func (b *Block) ZBlock() nativejson.RawMessage {
+	return b.ZBlk;
+}
 
 // SetStatus sets the status of this block
 func (b *Block) SetStatus(status choices.Status) { b.status = status }

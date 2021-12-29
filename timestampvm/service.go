@@ -7,9 +7,7 @@ import (
 	"errors"
 	"net/http"
 	log "github.com/inconshreveable/log15"
-	nativejson "encoding/json"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/json"
 )
 
@@ -29,7 +27,9 @@ type ProposeBlockArgs struct {
 }
 
 type SubmitTxArgs struct {
-	Data nativejson.RawMessage `json:"data"`
+	From string `json:"from"`
+	To string `json:"to"`
+	Amount float32 `json:"amount"`
 }
 
 type EmptyArgs struct {
@@ -43,31 +43,30 @@ type ProposeBlockReply struct{ Success bool }
 type GetMempoolReply struct{ Mempool [][]byte
 	 SubmittedTx []uint8 }
 
-// ProposeBlock is an API method to propose a new block whose data is [args].Data.
-// [args].Data must be a string repr. of a 32 byte array
-func (s *Service) ProposeBlock(_ *http.Request, args *ProposeBlockArgs, reply *ProposeBlockReply) error {
-	bytes, err := formatting.Decode(formatting.CB58, args.Data)
-	if err != nil || len(bytes) != dataLen {
-		return errBadData
-	}
-	var data [dataLen]byte         // The data as an array of bytes
-	copy(data[:], bytes[:dataLen]) // Copy the bytes in dataSlice to data
-	s.vm.proposeBlock(data)
-	reply.Success = true
+
+func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoolReply) error {
+	log.Info("submitting transaction. calling zcash.zendmany from", "nodeid", s.vm.ctx.NodeID, "node num", s.vm.GetNodeNum())
+	result := ZcashSendMany(args.From, args.To, args.Amount, s.vm.GetNodeNum())
+	s.vm.NotifyBlockReady()
+	reply.SubmittedTx = result.Result
+	s.vm.as.SendAppGossip(result.Result)
+	reply.Mempool = nil
 	return nil
 }
 
-func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoolReply) error {
+func (s *Service) Zcashrpc(_ *http.Request, args *ZCashRequest, reply *ZCashResponse) error {
+	log.Info("calling zcash rpc", "nodeid", s.vm.ctx.NodeID, "node num", s.vm.GetNodeNum())
+	result := CallZcashJson(args.Method, args.Params, s.vm.GetNodeNum())
+	reply.Result = result.Result
+	reply.ID = result.ID
+	reply.Error = result.Error
+	return nil
+}
 
-	var x []uint8 = []uint8{}
-	for _, i := range(args.Data) {
-		x = append(x, i)
-	}
-	log.Info("submitting transaction")
-	reply.SubmittedTx = x
-	s.vm.as.SendAppGossip(x)
-	s.vm.mempool2 = append(s.vm.mempool2, x)
-	reply.Mempool = s.vm.mempool2
+// needed to associate with local zcash rpc when multiple are running on same machine
+func (s *Service) Localnodestart(_ *http.Request, args *EmptyArgs, reply *GetMempoolReply) error {
+	log.Info("calling local node start", "nodeid", s.vm.ctx.NodeID)
+	s.vm.as.SendAppGossip(nil)
 	return nil
 }
 
@@ -121,8 +120,6 @@ func (s *Service) GetBlock(_ *http.Request, args *GetBlockArgs, reply *GetBlockR
 	reply.ID = block.ID()
 	reply.Timestamp = json.Uint64(block.Timestamp().Unix())
 	reply.ParentID = block.Parent()
-	data := block.Data()
-	reply.Data, err = formatting.EncodeWithChecksum(formatting.CB58, data[:])
 
 	return err
 }

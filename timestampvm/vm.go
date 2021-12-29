@@ -6,10 +6,13 @@ package timestampvm
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gorilla/rpc/v2"
 	log "github.com/inconshreveable/log15"
+
+	nativejson "encoding/json"
 
 	"github.com/ava-labs/avalanchego/database/manager"
 	"github.com/ava-labs/avalanchego/ids"
@@ -25,6 +28,7 @@ import (
 const (
 	dataLen = 32
 	Name    = "timestampvm"
+	islocal = true
 )
 
 var (
@@ -57,6 +61,8 @@ type VM struct {
 
 	mempool2 [][]byte
 
+	nodes map[string]bool
+
 	// Block ID --> Block
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
@@ -88,12 +94,13 @@ func (vm *VM) Initialize(
 		log.Error("error initializing Timestamp VM: %v", err)
 		return err
 	}
-	log.Info("Initializing Timestamp VM", "Version", version)
+	log.Info("Initializing Timestamp VM", "Version", version, "nodeid", ctx.NodeID)
 
 	vm.dbManager = dbManager
 	vm.ctx = ctx
 	vm.toEngine = toEngine
 	vm.verifiedBlocks = make(map[ids.ID]*Block)
+	vm.nodes = make(map[string]bool)
 	vm.as = as
 	vm.mempool2 = [][]byte{}
 
@@ -113,12 +120,17 @@ func (vm *VM) Initialize(
 
 	ctx.Log.Info("initializing last accepted block as %s", lastAccepted)
 
+	if islocal {
+		// set local node ids to match zcash api to node
+		vm.nodes[vm.ctx.NodeID.String()] = true
+	}
 	// Build off the most recently accepted block
 	return vm.SetPreference(lastAccepted)
 }
 
 // Initializes Genesis if required
 func (vm *VM) initGenesis(genesisData []byte) error {
+
 	stateInitialized, err := vm.state.IsInitialized()
 	if err != nil {
 		return err
@@ -129,18 +141,9 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 		return nil
 	}
 
-	if len(genesisData) > dataLen {
-		return errBadGenesisBytes
-	}
-
-	// genesisData is a byte slice but each block contains an byte array
-	// Take the first [dataLen] bytes from genesisData and put them in an array
-	var genesisDataArr [dataLen]byte
-	copy(genesisDataArr[:], genesisData)
-
 	// Create the genesis block
 	// Timestamp of genesis block is 0. It has no parent.
-	genesisBlock, err := vm.NewBlock(ids.Empty, 0, genesisDataArr, time.Unix(0, 0))
+	genesisBlock, err := vm.NewBlock(ids.Empty, 0, nil, time.Unix(0, 0))
 	if err != nil {
 		log.Error("error while creating genesis block: %v", err)
 		return err
@@ -209,19 +212,7 @@ func (vm *VM) HealthCheck() (interface{}, error) { return nil, nil }
 
 // BuildBlock returns a block that this vm wants to add to consensus
 func (vm *VM) BuildBlock() (snowman.Block, error) {
-	if len(vm.mempool) == 0 { // There is no block to be built
-		return nil, errNoPendingBlocks
-	}
-
-	// Get the value to put in the new block
-	value := vm.mempool[0]
-	vm.mempool = vm.mempool[1:]
-
-	// Notify consensus engine that there are more pending data for blocks
-	// (if that is the case) when done building this block
-	if len(vm.mempool) > 0 {
-		defer vm.NotifyBlockReady()
-	}
+	suggestResult := CallZcash("suggest", nil, vm.GetNodeNum())
 
 	// Gets Preferred Block
 	preferredBlock, err := vm.getBlock(vm.preferred)
@@ -231,7 +222,7 @@ func (vm *VM) BuildBlock() (snowman.Block, error) {
 	preferredHeight := preferredBlock.Height()
 
 	// Build the block with preferred height
-	newBlock, err := vm.NewBlock(vm.preferred, preferredHeight+1, value, time.Now())
+	newBlock, err := vm.NewBlock(vm.preferred, preferredHeight+1, suggestResult.Result, time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't build block: %w", err)
 	}
@@ -268,15 +259,6 @@ func (vm *VM) getBlock(blkID ids.ID) (*Block, error) {
 // LastAccepted returns the block most recently accepted
 func (vm *VM) LastAccepted() (ids.ID, error) { return vm.state.GetLastAccepted() }
 
-// proposeBlock appends [data] to [p.mempool].
-// Then it notifies the consensus engine
-// that a new block is ready to be added to consensus
-// (namely, a block with data [data])
-func (vm *VM) proposeBlock(data [dataLen]byte) {
-	vm.mempool = append(vm.mempool, data)
-	vm.NotifyBlockReady()
-}
-
 // ParseBlock parses [bytes] to a snowman.Block
 // This function is used by the vm's state to unmarshal blocks saved in state
 // and by the consensus layer when it receives the byte representation of a block
@@ -308,12 +290,12 @@ func (vm *VM) ParseBlock(bytes []byte) (snowman.Block, error) {
 // - the block's parent is [parentID]
 // - the block's data is [data]
 // - the block's timestamp is [timestamp]
-func (vm *VM) NewBlock(parentID ids.ID, height uint64, data [dataLen]byte, timestamp time.Time) (*Block, error) {
+func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMessage, timestamp time.Time) (*Block, error) {
 	block := &Block{
 		PrntID: parentID,
 		Hght:   height,
 		Tmstmp: timestamp.Unix(),
-		Dt:     data,
+		ZBlk: zblock,
 	}
 
 	// Get the byte representation of the block
@@ -362,12 +344,18 @@ func (vm *VM) Disconnected(id ids.ShortID) error {
 	return nil // noop
 }
 
-// This VM doesn't (currently) have any app-specific messages
+// Receive transaction
 func (vm *VM) AppGossip(nodeID ids.ShortID, msg []byte) error {
 	// receive gossip, add to mempool
-	log.Info("receiving app gossip")
-
-	vm.mempool2 = append(vm.mempool2, msg)
+	log.Info("receiving app gossip", "fromnodeid", nodeID, "receivingnodeid", vm.ctx.NodeID)
+	if islocal {
+		vm.nodes[nodeID.String()] = true
+	}
+	if msg != nil {
+		log.Info("calling zcash receive tx", "fromnodeid", nodeID, "receivingnodeid", vm.ctx.NodeID)
+		CallZcash("receivetx", msg, vm.GetNodeNum())
+		vm.NotifyBlockReady()
+	}
 
 	return nil
 }
@@ -385,4 +373,18 @@ func (vm *VM) AppResponse(nodeID ids.ShortID, requestID uint32, response []byte)
 // This VM doesn't (currently) have any app-specific messages
 func (vm *VM) AppRequestFailed(nodeID ids.ShortID, requestID uint32) error {
 	return nil
+}
+
+func (vm *VM) GetNodeNum() int {
+	keys := make([]string, 0, len(vm.nodes))
+	for k := range vm.nodes {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for index, val := range keys {
+		if val == vm.ctx.NodeID.String() {
+			return index
+		}
+	}
+	return -1
 }
