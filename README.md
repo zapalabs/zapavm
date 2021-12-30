@@ -12,4 +12,4 @@ zcashvm is served over RPC with [go-plugin](https://github.com/hashicorp/go-plug
 
 # Testing
 
-- You can use the launch.json defined [here](./vscode/launch.json) to test out various zcash rpcs. This launch file invokes the main package with custom arguments that cause the script to run custom tests.
+- You can use the launch.json defined [here](./.vscode/launch.json) to test out various zcash rpcs. This launch file invokes the main package with custom arguments that cause the script to run custom tests.
