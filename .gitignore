@@ -24,8 +24,7 @@ awscpu
 .idea/
 
 *logs/
-builds/
-.vscode*
+builds/zcashvm
 
 *.pb*
 
