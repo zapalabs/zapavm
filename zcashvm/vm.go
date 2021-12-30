@@ -1,7 +1,7 @@
 // (c) 2019-2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package timestampvm
+package zcashvm
 
 import (
 	"errors"
@@ -27,7 +27,7 @@ import (
 
 const (
 	dataLen = 32
-	Name    = "timestampvm"
+	Name    = "zcashvm"
 	islocal = true
 )
 
@@ -69,8 +69,6 @@ type VM struct {
 	verifiedBlocks map[ids.ID]*Block
 
 	as common.AppSender
-
-
 }
 
 // Initialize this vm
@@ -91,10 +89,10 @@ func (vm *VM) Initialize(
 ) error {
 	version, err := vm.Version()
 	if err != nil {
-		log.Error("error initializing Timestamp VM: %v", err)
+		log.Error("error initializing zcash VM: %v", err)
 		return err
 	}
-	log.Info("Initializing Timestamp VM", "Version", version, "nodeid", ctx.NodeID)
+	log.Info("Initializing zcash VM", "Version", version, "nodeid", ctx.NodeID)
 
 	vm.dbManager = dbManager
 	vm.ctx = ctx
@@ -295,7 +293,7 @@ func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMess
 		PrntID: parentID,
 		Hght:   height,
 		Tmstmp: timestamp.Unix(),
-		ZBlk: zblock,
+		ZBlk:   zblock,
 	}
 
 	// Get the byte representation of the block

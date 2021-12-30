@@ -1,4 +1,4 @@
-module github.com/ava-labs/timestampvm
+module github.com/rkass/zcashvm
 
 go 1.16
 

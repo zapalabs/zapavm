@@ -24,7 +24,7 @@ awscpu
 .idea/
 
 *logs/
-
+builds/
 .vscode*
 
 *.pb*

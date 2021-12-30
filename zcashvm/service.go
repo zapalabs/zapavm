@@ -1,14 +1,15 @@
 // (c) 2019-2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package timestampvm
+package zcashvm
 
 import (
 	"errors"
 	"net/http"
-	log "github.com/inconshreveable/log15"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/json"
+	log "github.com/inconshreveable/log15"
 )
 
 var (
@@ -27,22 +28,21 @@ type ProposeBlockArgs struct {
 }
 
 type SubmitTxArgs struct {
-	From string `json:"from"`
-	To string `json:"to"`
+	From   string  `json:"from"`
+	To     string  `json:"to"`
 	Amount float32 `json:"amount"`
 }
 
 type EmptyArgs struct {
-
 }
-
 
 // ProposeBlockReply is the reply from function ProposeBlock
 type ProposeBlockReply struct{ Success bool }
 
-type GetMempoolReply struct{ Mempool [][]byte
-	 SubmittedTx []uint8 }
-
+type GetMempoolReply struct {
+	Mempool     [][]byte
+	SubmittedTx []uint8
+}
 
 func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoolReply) error {
 	log.Info("submitting transaction. calling zcash.zendmany from", "nodeid", s.vm.ctx.NodeID, "node num", s.vm.GetNodeNum())
@@ -67,12 +67,6 @@ func (s *Service) Zcashrpc(_ *http.Request, args *ZCashRequest, reply *ZCashResp
 func (s *Service) Localnodestart(_ *http.Request, args *EmptyArgs, reply *GetMempoolReply) error {
 	log.Info("calling local node start", "nodeid", s.vm.ctx.NodeID)
 	s.vm.as.SendAppGossip(nil)
-	return nil
-}
-
-func (s *Service) GetMempool(_ *http.Request, args *EmptyArgs, reply *GetMempoolReply) error {
-	log.Info("getting mempool")
-	reply.Mempool = s.vm.mempool2
 	return nil
 }
 

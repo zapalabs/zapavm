@@ -1,7 +1,7 @@
 // (c) 2019-2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package timestampvm
+package zcashvm
 
 import (
 	"errors"
@@ -11,7 +11,6 @@ import (
 	nativejson "encoding/json"
 
 	log "github.com/inconshreveable/log15"
-
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
@@ -34,10 +33,10 @@ var (
 // 3) Timestamp
 // 4) A piece of data (a string)
 type Block struct {
-	PrntID ids.ID        `serialize:"true" json:"parentID"`  // parent's ID
-	Hght   uint64        `serialize:"true" json:"height"`    // This block's height. The genesis block is at height 0.
-	Tmstmp int64         `serialize:"true" json:"timestamp"` // Time this block was proposed at
-	ZBlk nativejson.RawMessage `serialize:"true" json:"zblock"` // zcash block
+	PrntID ids.ID                `serialize:"true" json:"parentID"`  // parent's ID
+	Hght   uint64                `serialize:"true" json:"height"`    // This block's height. The genesis block is at height 0.
+	Tmstmp int64                 `serialize:"true" json:"timestamp"` // Time this block was proposed at
+	ZBlk   nativejson.RawMessage `serialize:"true" json:"zblock"`    // zcash block
 
 	id     ids.ID         // hold this block's ID
 	bytes  []byte         // this block's encoded bytes
@@ -47,7 +46,7 @@ type Block struct {
 
 // Verify returns nil iff this block is valid.
 func (b *Block) Verify() error {
-	if (b.ZBlock != nil) {
+	if b.ZBlock != nil {
 		r := CallZcash("validateBlock", b.ZBlock(), b.vm.GetNodeNum())
 		s := string(r.Result[:])
 		if s != "null" {
@@ -72,11 +71,11 @@ func (b *Block) Initialize(bytes []byte, status choices.Status, vm *VM) {
 // block's ID and saves this info to b.vm.DB
 func (b *Block) Accept() error {
 
-	if (b.ZBlock() != nil) {
-		log.Info("Calling accept block from", "nodeid", b.vm.ctx.NodeID.String(), "nodenum", b.vm.GetNodeNum()) 
+	if b.ZBlock() != nil {
+		log.Info("Calling accept block from", "nodeid", b.vm.ctx.NodeID.String(), "nodenum", b.vm.GetNodeNum())
 		CallZcash("submitblock", b.ZBlock(), b.vm.GetNodeNum())
 	}
-	
+
 	b.SetStatus(choices.Accepted) // Change state of this block
 	blkID := b.ID()
 
@@ -129,7 +128,7 @@ func (b *Block) Status() choices.Status { return b.status }
 func (b *Block) Bytes() []byte { return b.bytes }
 
 func (b *Block) ZBlock() nativejson.RawMessage {
-	return b.ZBlk;
+	return b.ZBlk
 }
 
 // SetStatus sets the status of this block
