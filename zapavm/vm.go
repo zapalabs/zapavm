@@ -6,7 +6,6 @@ package zapavm
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/gorilla/rpc/v2"
@@ -28,7 +27,6 @@ import (
 const (
 	dataLen = 32
 	Name    = "zapavm"
-	islocal = true
 )
 
 var (
@@ -61,14 +59,14 @@ type VM struct {
 
 	mempool2 [][]byte
 
-	nodes map[string]bool
-
 	// Block ID --> Block
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
 	verifiedBlocks map[ids.ID]*Block
 
 	as common.AppSender
+
+	zc ZcashClient
 }
 
 // Initialize this vm
@@ -98,9 +96,9 @@ func (vm *VM) Initialize(
 	vm.ctx = ctx
 	vm.toEngine = toEngine
 	vm.verifiedBlocks = make(map[ids.ID]*Block)
-	vm.nodes = make(map[string]bool)
 	vm.as = as
 	vm.mempool2 = [][]byte{}
+	vm.zc = ZcashClient{}
 
 	// Create new state
 	vm.state = NewState(vm.dbManager.Current().Database, vm)
@@ -118,10 +116,6 @@ func (vm *VM) Initialize(
 
 	ctx.Log.Info("initializing last accepted block as %s", lastAccepted)
 
-	if islocal {
-		// set local node ids to match zcash api to node
-		vm.nodes[vm.ctx.NodeID.String()] = true
-	}
 	// Build off the most recently accepted block
 	return vm.SetPreference(lastAccepted)
 }
@@ -210,7 +204,7 @@ func (vm *VM) HealthCheck() (interface{}, error) { return nil, nil }
 
 // BuildBlock returns a block that this vm wants to add to consensus
 func (vm *VM) BuildBlock() (snowman.Block, error) {
-	suggestResult := CallZcash("suggest", nil, vm.GetNodeNum())
+	suggestResult := vm.zc.CallZcash("suggest", nil)
 
 	// Gets Preferred Block
 	preferredBlock, err := vm.getBlock(vm.preferred)
@@ -346,12 +340,9 @@ func (vm *VM) Disconnected(id ids.ShortID) error {
 func (vm *VM) AppGossip(nodeID ids.ShortID, msg []byte) error {
 	// receive gossip, add to mempool
 	log.Info("receiving app gossip", "fromnodeid", nodeID, "receivingnodeid", vm.ctx.NodeID)
-	if islocal {
-		vm.nodes[nodeID.String()] = true
-	}
 	if msg != nil {
 		log.Info("calling zcash receive tx", "fromnodeid", nodeID, "receivingnodeid", vm.ctx.NodeID)
-		CallZcash("receivetx", msg, vm.GetNodeNum())
+		vm.zc.CallZcash("receivetx", msg)
 		vm.NotifyBlockReady()
 	}
 
@@ -371,18 +362,4 @@ func (vm *VM) AppResponse(nodeID ids.ShortID, requestID uint32, response []byte)
 // This VM doesn't (currently) have any app-specific messages
 func (vm *VM) AppRequestFailed(nodeID ids.ShortID, requestID uint32) error {
 	return nil
-}
-
-func (vm *VM) GetNodeNum() int {
-	keys := make([]string, 0, len(vm.nodes))
-	for k := range vm.nodes {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for index, val := range keys {
-		if val == vm.ctx.NodeID.String() {
-			return index
-		}
-	}
-	return -1
 }

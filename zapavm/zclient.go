@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 
 	log "github.com/inconshreveable/log15"
@@ -13,29 +14,10 @@ import (
 
 const (
 	zcashHost  = "127.0.0.1"
-	zcash0Port = "8232"
-	zcash1Port = "8233"
-	zcash2Port = "8234"
-	zcash3Port = "8235"
-	zcash4Port = "8236"
+	zcashPort = 8232
 	zcashUser  = "test"
 	zcashPw    = "pw"
 )
-
-func zcashCompleteHost(zcashInstance int) string {
-	if zcashInstance == 0 {
-		return "http://" + zcashUser + ":" + zcashPw + "@" + zcashHost + ":" + zcash0Port
-	} else if zcashInstance == 1 {
-		return "http://" + zcashUser + ":" + zcashPw + "@" + zcashHost + ":" + zcash1Port
-	} else if zcashInstance == 2 {
-		return "http://" + zcashUser + ":" + zcashPw + "@" + zcashHost + ":" + zcash2Port
-	} else if zcashInstance == 3 {
-		return "http://" + zcashUser + ":" + zcashPw + "@" + zcashHost + ":" + zcash3Port
-	} else if zcashInstance == 4 {
-		return "http://" + zcashUser + ":" + zcashPw + "@" + zcashHost + ":" + zcash4Port
-	}
-	return "unknown"
-}
 
 type ZCashResponse struct {
 	Result nativejson.RawMessage `json:"result`
@@ -55,8 +37,47 @@ type ZCashRequest2 struct {
 	ID     string                `json:"id"`
 }
 
-func ZcashSendMany(from string, to string, amount float32, zcashInstance int) ZCashResponse {
-	log.Info("Calling Zcash Method: z_sendmany", "from", from, "to", to, "amount", amount, "instance num", zcashInstance)
+type ZcashClient struct {
+	Host     string
+	Port     int
+	User     string
+	Password string
+}
+
+func (zc *ZcashClient) GetHost() string {
+	if zc.Host == "" {
+		return zcashHost
+	}
+	return zc.Host
+}
+
+func (zc *ZcashClient) GetPort() int {
+	if zc.Port == 0 {
+		return zcashPort
+	}
+	return zc.Port
+}
+
+func (zc *ZcashClient) GetUser() string {
+	if zc.User == "" {
+		return zcashUser
+	}
+	return zc.User
+}
+
+func (zc *ZcashClient) GetPassword() string {
+	if zc.Password == "" {
+		return zcashPw
+	}
+	return zc.Password
+}
+
+func (zc *ZcashClient) GetCompleteHost() string {
+	return "http://" + zc.GetUser() + ":" + zc.GetPassword() + "@" + zc.GetHost() + ":" + strconv.Itoa(zc.GetPort())
+}
+ 
+func (zc *ZcashClient) ZcashSendMany(from string, to string, amount float32) ZCashResponse {
+	log.Info("Calling Zcash Method: z_sendmany", "from", from, "to", to, "amount", amount)
 	var params []interface{}
 	params = append(params, from)
 	var destination []interface{}
@@ -65,13 +86,13 @@ func ZcashSendMany(from string, to string, amount float32, zcashInstance int) ZC
 	dest["amount"] = amount
 	destination = append(destination, dest)
 	params = append(params, destination)
-	return CallZcashJson("z_sendmany", params, zcashInstance)
+	return zc.CallZcashJson("z_sendmany", params)
 }
 
-func GetZcashResponse(b []byte, zcashInstance int) ZCashResponse {
+func (zc *ZcashClient) GetZcashResponse(b []byte) ZCashResponse {
 	dataz := string(b)
 
-	completeHost := zcashCompleteHost(zcashInstance)
+	completeHost := zc.GetCompleteHost()
 	serializedData := strings.NewReader(dataz)
 	log.Info("Connecting to zcash", "Compelte Host", completeHost, "data", serializedData)
 	resp, err := http.Post(completeHost, "application/json", serializedData)
@@ -92,19 +113,20 @@ func GetZcashResponse(b []byte, zcashInstance int) ZCashResponse {
 	return zresp
 }
 
-func CallZcashJson(method string, params []interface{}, zcashInstance int) ZCashResponse {
-	log.Info("Calling Zcash Json", "Method", method, "params", params, "nodenum", zcashInstance)
+func (zc *ZcashClient) CallZcashJson(method string, params []interface{}) ZCashResponse {
+	completeHost := zc.GetCompleteHost()
+	log.Info("Calling Zcash Json", "Method", method, "params", params, "complete host", completeHost)
 
 	req := &ZCashRequest{Params: params, Method: method, ID: "fromgo"}
 	b, err := nativejson.Marshal(req)
 	if err != nil {
 		fmt.Println(err)
 	}
-	return GetZcashResponse(b, zcashInstance)
+	return zc.GetZcashResponse(b)
 }
 
-func CallZcash(method string, zresult nativejson.RawMessage, zcashInstance int) ZCashResponse {
-	log.Info("Calling Zcash", "Method", method, "params", zresult, "nodenum", zcashInstance)
+func (zc *ZcashClient) CallZcash(method string, zresult nativejson.RawMessage) ZCashResponse {
+	log.Info("Calling Zcash", "Method", method, "params", zresult)
 	var req *ZCashRequest2
 	if zresult != nil {
 		var x []uint8 = []uint8{}
@@ -120,5 +142,5 @@ func CallZcash(method string, zresult nativejson.RawMessage, zcashInstance int) 
 	if err != nil {
 		fmt.Println(err)
 	}
-	return GetZcashResponse(b, zcashInstance)
+	return zc.GetZcashResponse(b)
 }

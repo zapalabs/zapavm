@@ -46,8 +46,8 @@ type Block struct {
 
 // Verify returns nil iff this block is valid.
 func (b *Block) Verify() error {
-	if b.ZBlock != nil {
-		r := CallZcash("validateBlock", b.ZBlock(), b.vm.GetNodeNum())
+	if b.ZBlock() != nil {
+		r := b.vm.zc.CallZcash("validateBlock", b.ZBlock())
 		s := string(r.Result[:])
 		if s != "null" {
 			return fmt.Errorf("validate block returned error " + s)
@@ -72,8 +72,8 @@ func (b *Block) Initialize(bytes []byte, status choices.Status, vm *VM) {
 func (b *Block) Accept() error {
 
 	if b.ZBlock() != nil {
-		log.Info("Calling accept block from", "nodeid", b.vm.ctx.NodeID.String(), "nodenum", b.vm.GetNodeNum())
-		CallZcash("submitblock", b.ZBlock(), b.vm.GetNodeNum())
+		log.Info("Calling accept block from", "nodeid", b.vm.ctx.NodeID.String())
+		b.vm.zc.CallZcash("submitblock", b.ZBlock())
 	}
 
 	b.SetStatus(choices.Accepted) // Change state of this block

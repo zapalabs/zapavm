@@ -36,6 +36,11 @@ type SubmitTxArgs struct {
 type EmptyArgs struct {
 }
 
+type ZcashHostInfo struct {
+	Host       string `json:"host"`
+	Port   int `json:"port"`
+}
+
 // ProposeBlockReply is the reply from function ProposeBlock
 type ProposeBlockReply struct{ Success bool }
 
@@ -44,9 +49,13 @@ type GetMempoolReply struct {
 	SubmittedTx []uint8
 }
 
+type SuccessOrNotReply struct {
+	Success bool
+}
+
 func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoolReply) error {
-	log.Info("submitting transaction. calling zcash.zendmany from", "nodeid", s.vm.ctx.NodeID, "node num", s.vm.GetNodeNum())
-	result := ZcashSendMany(args.From, args.To, args.Amount, s.vm.GetNodeNum())
+	log.Info("submitting transaction. calling zcash.zendmany from", "nodeid", s.vm.ctx.NodeID)
+	result := s.vm.zc.ZcashSendMany(args.From, args.To, args.Amount)
 	s.vm.NotifyBlockReady()
 	reply.SubmittedTx = result.Result
 	s.vm.as.SendAppGossip(result.Result)
@@ -55,8 +64,8 @@ func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoo
 }
 
 func (s *Service) Zcashrpc(_ *http.Request, args *ZCashRequest, reply *ZCashResponse) error {
-	log.Info("calling zcash rpc", "nodeid", s.vm.ctx.NodeID, "node num", s.vm.GetNodeNum())
-	result := CallZcashJson(args.Method, args.Params, s.vm.GetNodeNum())
+	log.Info("calling zcash rpc", "nodeid", s.vm.ctx.NodeID)
+	result := s.vm.zc.CallZcashJson(args.Method, args.Params)
 	reply.Result = result.Result
 	reply.ID = result.ID
 	reply.Error = result.Error
@@ -64,11 +73,14 @@ func (s *Service) Zcashrpc(_ *http.Request, args *ZCashRequest, reply *ZCashResp
 }
 
 // needed to associate with local zcash rpc when multiple are running on same machine
-func (s *Service) Localnodestart(_ *http.Request, args *EmptyArgs, reply *GetMempoolReply) error {
-	log.Info("calling local node start", "nodeid", s.vm.ctx.NodeID)
-	s.vm.as.SendAppGossip(nil)
+func (s *Service) AssociateZcashHostPort(_ *http.Request, args *ZcashHostInfo, reply *SuccessOrNotReply) error {
+	log.Info("calling associate zcash host port", "rpc host", args.Host, "rpc port", args.Port)
+	s.vm.zc.Host = args.Host
+	s.vm.zc.Port = args.Port
+	reply.Success = true
 	return nil
 }
+
 
 // GetBlockArgs are the arguments to GetBlock
 type GetBlockArgs struct {

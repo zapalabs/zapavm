@@ -14,7 +14,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
-	"github.com/rkass/zapavm/zapavm"
+	"github.com/zapalabs/zapavm/zapavm"
 )
 
 const logFile = "../zapavm/logs/log"
@@ -29,7 +29,8 @@ func main() {
 				Tmstmp: time.Unix(0, 0).Unix(),
 				ZBlk:   nil,
 			}
-			sugblk := zapavm.CallZcash("suggest", nil, 0)
+			zc := zapavm.ZcashClient{}
+			sugblk :=  zc.CallZcash("suggest", nil)
 			block2 := &zapavm.Block{
 				PrntID: genesis.ID(),
 				Hght:   genesis.Height() + 1,

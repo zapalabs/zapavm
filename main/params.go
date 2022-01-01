@@ -6,7 +6,7 @@ package main
 import (
 	"flag"
 
-	"github.com/rkass/zapavm/zapavm"
+	"github.com/zapalabs/zapavm/zapavm"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
