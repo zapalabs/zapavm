@@ -14,23 +14,23 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
-	"github.com/rkass/zcashvm/zcashvm"
+	"github.com/rkass/zapavm/zapavm"
 )
 
-const logFile = "../zcashvm/logs/log"
+const logFile = "../zapavm/logs/log"
 
 func main() {
 	version, err := PrintVersion()
 	if len(os.Args) == 2 {
 		if os.Args[1] == "testBlockSerialization" {
-			genesis := &zcashvm.Block{
+			genesis := &zapavm.Block{
 				PrntID: ids.Empty,
-				Hght: 0,
+				Hght:   0,
 				Tmstmp: time.Unix(0, 0).Unix(),
-				ZBlk: nil,
+				ZBlk:   nil,
 			}
-			sugblk := zcashvm.CallZcash("suggest", nil, 0)
-			block2 := &zcashvm.Block{
+			sugblk := zapavm.CallZcash("suggest", nil, 0)
+			block2 := &zapavm.Block{
 				PrntID: genesis.ID(),
 				Hght:   genesis.Height() + 1,
 				Tmstmp: time.Now().Unix(),
@@ -38,13 +38,13 @@ func main() {
 			}
 
 			// Get the byte representation of the block
-			block2Bytes, err := zcashvm.Codec.Marshal(zcashvm.CodecVersion, block2)
+			block2Bytes, err := zapavm.Codec.Marshal(zapavm.CodecVersion, block2)
 			if err != nil {
 				return
 			}
 
-			newBlock := &zcashvm.Block{}
-			zcashvm.Codec.Unmarshal(block2Bytes, newBlock)
+			newBlock := &zapavm.Block{}
+			zapavm.Codec.Unmarshal(block2Bytes, newBlock)
 			if newBlock.Height() != block2.Height() {
 				panic("Discrepancy in height when unmarshalling")
 			}
@@ -65,7 +65,7 @@ func main() {
 	}
 	// Print VM ID and exit
 	if version {
-		fmt.Printf("%s@%s\n", zcashvm.Name, zcashvm.Version)
+		fmt.Printf("%s@%s\n", zapavm.Name, zapavm.Version)
 		os.Exit(0)
 	}
 
@@ -79,7 +79,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: rpcchainvm.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"vm": rpcchainvm.New(&zcashvm.VM{}),
+			"vm": rpcchainvm.New(&zapavm.VM{}),
 		},
 
 		// A non-nil value here enables gRPC serving for this plugin...

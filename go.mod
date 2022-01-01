@@ -1,4 +1,4 @@
-module github.com/rkass/zcashvm
+module github.com/rkass/zapavm
 
 go 1.16
 

@@ -6,7 +6,7 @@ package main
 import (
 	"flag"
 
-	"github.com/rkass/zcashvm/zcashvm"
+	"github.com/rkass/zapavm/zapavm"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -16,7 +16,7 @@ const (
 )
 
 func buildFlagSet() *flag.FlagSet {
-	fs := flag.NewFlagSet(zcashvm.Name, flag.ContinueOnError)
+	fs := flag.NewFlagSet(zapavm.Name, flag.ContinueOnError)
 
 	fs.Bool(versionKey, false, "If true, prints Version and quit")
 
