@@ -54,11 +54,6 @@ type VM struct {
 	// channel to send messages to the consensus engine
 	toEngine chan<- common.Message
 
-	// Proposed pieces of data that haven't been put into a block and proposed yet
-	mempool [][dataLen]byte
-
-	mempool2 [][]byte
-
 	// Block ID --> Block
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
@@ -97,7 +92,6 @@ func (vm *VM) Initialize(
 	vm.toEngine = toEngine
 	vm.verifiedBlocks = make(map[ids.ID]*Block)
 	vm.as = as
-	vm.mempool2 = [][]byte{}
 	vm.zc = ZcashClient{}
 
 	// Create new state
@@ -318,10 +312,16 @@ func (vm *VM) SetPreference(id ids.ID) error {
 }
 
 // Bootstrapped marks this VM as bootstrapped
-func (vm *VM) Bootstrapped() error { return nil }
+func (vm *VM) Bootstrapped() error { 
+	log.Info("node finished bootstrapping", "node id", vm.ctx.NodeID)
+	return nil 
+}
 
 // Bootstrapping marks this VM as bootstrapping
-func (vm *VM) Bootstrapping() error { return nil }
+func (vm *VM) Bootstrapping() error { 
+	log.Info("node is bootstrapping", "node id", vm.ctx.NodeID)
+	return nil 
+}
 
 // Returns this VM's version
 func (vm *VM) Version() (string, error) {
@@ -329,6 +329,7 @@ func (vm *VM) Version() (string, error) {
 }
 
 func (vm *VM) Connected(id ids.ShortID) error {
+	log.Info("Connected to node id", "node id", id)
 	return nil // noop
 }
 
