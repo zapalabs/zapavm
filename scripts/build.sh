@@ -13,7 +13,7 @@ zapavm_PATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )"; cd .. && pwd )
 
 # Set default binary directory location
 binary_directory="$GOPATH/src/github.com/ava-labs/avalanchego/build/plugins"
-name="bJsAHzbhhecziPDbbnDUk8bFa8ZGTBh32dzEq69uZq8BNkG9T"
+name="tGas3T58KzdjLHhBDMnH2TvrddhqTji5iZAMZ3RXs2NLpSnhH"
 
 if [[ $# -eq 1 ]]; then
     binary_directory=$1
