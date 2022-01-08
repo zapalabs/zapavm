@@ -108,6 +108,8 @@ func (vm *VM) Initialize(
 		return err
 	}
 
+	//call out to zcash to get the block info
+
 	ctx.Log.Info("initializing last accepted block as %s", lastAccepted)
 
 	// Build off the most recently accepted block
