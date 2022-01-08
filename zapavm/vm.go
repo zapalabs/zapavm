@@ -330,8 +330,8 @@ func (vm *VM) Version() (string, error) {
 	return Version.String(), nil
 }
 
-func (vm *VM) Connected(id ids.ShortID) error {
-	log.Info("Connected to node id", "node id", id)
+func (vm *VM) Connected(id ids.ShortID, v version.Application) error {
+	log.Info("Connected to node id", "node id", id, "app version", v.String())
 	return nil // noop
 }
 
