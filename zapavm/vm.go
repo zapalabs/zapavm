@@ -6,6 +6,9 @@ package zapavm
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/rpc/v2"
@@ -85,14 +88,43 @@ func (vm *VM) Initialize(
 		log.Error("error initializing zcash VM: %v", err)
 		return err
 	}
-	log.Info("Initializing zapa VM", "Version", version, "nodeid", ctx.NodeID)
+	log.Info("hello")
+	log.Info("Initializing zapa VM", "Version", version, "nodeid", ctx.NodeID, "config", configData)
 
 	vm.dbManager = dbManager
 	vm.ctx = ctx
 	vm.toEngine = toEngine
 	vm.verifiedBlocks = make(map[ids.ID]*Block)
 	vm.as = as
-	vm.zc = ZcashClient{}
+	var conf VMConfig
+	jerr := nativejson.Unmarshal(configData, &conf)
+    if jerr != nil {
+		// must be local
+		log.Info("Failed to marshal config, we must be local, getting node num from file")
+		i := 0
+		for i < 5 {
+			nid, _ := ioutil.ReadFile("/node-ids/" + strconv.Itoa(i))
+			snid := strings.ReplaceAll(string(nid), "NodeID-", "")
+			log.Info("comparing", "fvalue", snid, "nid", ctx.NodeID.String())
+			if snid == ctx.NodeID.String() {
+				log.Info("Initializing zcash client as node num", "num", i)
+				vm.zc = ZcashClient{
+					Host: "127.0.0.1",
+					Port: 8232 + i,
+					User: "test",
+					Password: "pw",
+				}
+			}
+			i += 1
+		}
+    } else {
+		vm.zc = ZcashClient{
+			Host:conf.ZcashHost,
+			Port: conf.ZcashPort,
+			User: conf.ZcashUser,
+			Password: conf.ZcashPassword,
+		}
+	}
 
 	// Create new state
 	vm.state = NewState(vm.dbManager.Current().Database, vm)
@@ -193,6 +225,7 @@ func (vm *VM) CreateStaticHandlers() (map[string]*common.HTTPHandler, error) {
 			Handler:     server,
 		},
 	}, nil
+
 }
 
 // Health implements the common.VM interface
