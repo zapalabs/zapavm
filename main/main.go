@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/hashicorp/go-plugin"
 	log "github.com/inconshreveable/log15"
@@ -26,7 +25,6 @@ func main() {
 			genesis := &zapavm.Block{
 				PrntID: ids.Empty,
 				Hght:   0,
-				Tmstmp: time.Unix(0, 0).Unix(),
 				ZBlk:   nil,
 			}
 			zc := zapavm.ZcashClient{}
@@ -34,7 +32,6 @@ func main() {
 			block2 := &zapavm.Block{
 				PrntID: genesis.ID(),
 				Hght:   genesis.Height() + 1,
-				Tmstmp: time.Now().Unix(),
 				ZBlk:   sugblk.Result,
 			}
 
@@ -56,6 +53,17 @@ func main() {
 				panic("Discrepancy in zblock when unmarshalling")
 			}
 
+			return
+		}
+		if os.Args[1] == "iterateBlocks" {
+			zc := zapavm.ZcashClient{}
+			zc.Port = 8233
+			x := 0
+			for i := range(zc.BlockGenerator()) {
+				fmt.Print(i)
+				x++;
+			}
+			fmt.Print(x)
 			return
 		}
 	}

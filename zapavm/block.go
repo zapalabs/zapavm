@@ -35,7 +35,6 @@ var (
 type Block struct {
 	PrntID ids.ID                `serialize:"true" json:"parentID"`  // parent's ID
 	Hght   uint64                `serialize:"true" json:"height"`    // This block's height. The genesis block is at height 0.
-	Tmstmp int64                 `serialize:"true" json:"timestamp"` // Time this block was proposed at
 	ZBlk   nativejson.RawMessage `serialize:"true" json:"zblock"`    // zcash block
 
 	id     ids.ID         // hold this block's ID
@@ -46,11 +45,13 @@ type Block struct {
 
 // Verify returns nil iff this block is valid.
 func (b *Block) Verify() error {
+	log.Info("Calling verify block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height(), "boostrapping genesis", b.vm.bootstrappingGenesis)
 	if b.ZBlock() != nil {
 		r := b.vm.zc.CallZcash("validateBlock", b.ZBlock())
 		s := string(r.Result[:])
 		if s != "null" {
-			return fmt.Errorf("validate block returned error " + s)
+			log.Error("validate block returned error " + s, "blocknum", b.Height())
+			return fmt.Errorf("error validating block")
 		}
 	}
 	b.vm.verifiedBlocks[b.ID()] = b
@@ -70,9 +71,10 @@ func (b *Block) Initialize(bytes []byte, status choices.Status, vm *VM) {
 // Accept sets this block's status to Accepted and sets lastAccepted to this
 // block's ID and saves this info to b.vm.DB
 func (b *Block) Accept() error {
+	log.Info("Calling accept block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height(), "boostrapping genesis", b.vm.bootstrappingGenesis)
 
-	if b.ZBlock() != nil {
-		log.Info("Calling accept block from", "nodeid", b.vm.ctx.NodeID.String())
+	if b.ZBlock() != nil && !b.vm.bootstrappingGenesis {
+		log.Info("Calling zcash submit block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
 		b.vm.zc.CallZcash("submitblock", b.ZBlock())
 	}
 
@@ -99,6 +101,8 @@ func (b *Block) Accept() error {
 // Reject sets this block's status to Rejected and saves the status in state
 // Recall that b.vm.DB.Commit() must be called to persist to the DB
 func (b *Block) Reject() error {
+	log.Info("Calling reject block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height(), "boostrapping genesis", b.vm.bootstrappingGenesis)
+
 	b.SetStatus(choices.Rejected) // Change state of this block
 	if err := b.vm.state.PutBlock(b); err != nil {
 		return err
@@ -118,8 +122,18 @@ func (b *Block) Parent() ids.ID { return b.PrntID }
 // Height returns this block's height. The genesis block has height 0.
 func (b *Block) Height() uint64 { return b.Hght }
 
-// Timestamp returns this block's time. The genesis block has time 0.
-func (b *Block) Timestamp() time.Time { return time.Unix(b.Tmstmp, 0) }
+// Timestamp returns this block's time. The genesis block has time 0. For now, return
+// the root timesamp (2022-01-01) for genesis plus one second for each additional block
+func (b *Block) Timestamp() time.Time { 
+	layout := "2006-01-02T15:04:05.000Z"
+	str := "2022-01-01T00:00:00.00Z"
+	t, err := time.Parse(layout, str)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	return t.Add(time.Second * time.Duration(b.Height()))
+}
 
 // Status returns the status of this block
 func (b *Block) Status() choices.Status { return b.status }

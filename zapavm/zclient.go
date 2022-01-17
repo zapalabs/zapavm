@@ -125,6 +125,32 @@ func (zc *ZcashClient) CallZcashJson(method string, params []interface{}) ZCashR
 	return zc.GetZcashResponse(b)
 }
 
+func (zc *ZcashClient) GetBlockCount() int {
+	blkcnt :=  zc.CallZcash("getblockcount", nil)
+	r, _ := strconv.Atoi(string(blkcnt.Result))
+	return r
+}
+
+func (zc *ZcashClient) GetZBlock(height int) nativejson.RawMessage {
+	resp := zc.CallZcashJson("getserializedblock", []interface{}{strconv.Itoa(height)})
+	return resp.Result
+}
+
+func (zc *ZcashClient) BlockGenerator() chan nativejson.RawMessage {
+	c := make(chan nativejson.RawMessage)
+	go func() {
+		numBlks := zc.GetBlockCount()
+		blkcnt := 0
+		for blkcnt <= numBlks {
+			c <- zc.GetZBlock(blkcnt)
+			blkcnt++
+		}
+		close(c)
+	}()
+	return c
+}
+
+
 func (zc *ZcashClient) CallZcash(method string, zresult nativejson.RawMessage) ZCashResponse {
 	log.Info("Calling Zcash", "Method", method, "params", zresult)
 	var req *ZCashRequest2

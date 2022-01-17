@@ -4,9 +4,9 @@
 package zapavm
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -33,8 +33,6 @@ const (
 )
 
 var (
-	errNoPendingBlocks = errors.New("there is no block to propose")
-	errBadGenesisBytes = errors.New("genesis data should be bytes (max length 32)")
 	Version            = version.NewDefaultVersion(1, 2, 0)
 
 	_ block.ChainVM = &VM{}
@@ -65,6 +63,7 @@ type VM struct {
 	as common.AppSender
 
 	zc ZcashClient
+	bootstrappingGenesis bool
 }
 
 // Initialize this vm
@@ -90,7 +89,7 @@ func (vm *VM) Initialize(
 	}
 	log.Info("hello")
 	log.Info("Initializing zapa VM", "Version", version, "nodeid", ctx.NodeID, "config", configData)
-
+	vm.bootstrappingGenesis = true
 	vm.dbManager = dbManager
 	vm.ctx = ctx
 	vm.toEngine = toEngine
@@ -99,23 +98,40 @@ func (vm *VM) Initialize(
 	var conf VMConfig
 	jerr := nativejson.Unmarshal(configData, &conf)
     if jerr != nil {
-		// must be local
-		log.Info("Failed to marshal config, we must be local, getting node num from file")
-		i := 0
-		for i < 5 {
-			nid, _ := ioutil.ReadFile("/node-ids/" + strconv.Itoa(i))
-			snid := strings.ReplaceAll(string(nid), "NodeID-", "")
-			log.Info("comparing", "fvalue", snid, "nid", ctx.NodeID.String())
-			if snid == ctx.NodeID.String() {
-				log.Info("Initializing zcash client as node num", "num", i)
-				vm.zc = ZcashClient{
-					Host: "127.0.0.1",
-					Port: 8232 + i,
-					User: "test",
-					Password: "pw",
+		// try reading a custom file
+		h, _ := os.LookupEnv("HOME")
+		plan, _ := ioutil.ReadFile(h +  "/.avalanchego/configs/vms/zapavm/node.json")
+		var data map[string]interface{}
+		log.Info("Attempting to marshal", "contents", plan)
+		err := nativejson.Unmarshal(plan, &data)
+		if err != nil {
+			log.Error("error", "e", err)
+			// must be local
+			log.Info("Failed to marshal config, we must be local, getting node num from file")
+			i := 0
+			for i < 5 {
+				nid, _ := ioutil.ReadFile("/node-ids/" + strconv.Itoa(i))
+				snid := strings.ReplaceAll(string(nid), "NodeID-", "")
+				log.Info("comparing", "fvalue", snid, "nid", ctx.NodeID.String())
+				if snid == ctx.NodeID.String() {
+					log.Info("Initializing zcash client as node num", "num", i)
+					vm.zc = ZcashClient{
+						Host: "127.0.0.1",
+						Port: 8232 + i,
+						User: "test",
+						Password: "pw",
+					}
 				}
+				i += 1
 			}
-			i += 1
+		} else {
+			log.Info("successfuly sourced node config", "config", data)
+			vm.zc = ZcashClient {
+				Host: data["zc_host"].(string),
+				Port: data["zc_port"].(int),
+				User: data["zc_user"].(string),
+				Password: data["zc_password"].(string),
+			}
 		}
     } else {
 		vm.zc = ZcashClient{
@@ -161,31 +177,31 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 		return nil
 	}
 
-	// Create the genesis block
-	// Timestamp of genesis block is 0. It has no parent.
-	genesisBlock, err := vm.NewBlock(ids.Empty, 0, nil, time.Unix(0, 0))
+	var height uint64 = 0
+	parentid := ids.Empty
+	genesisBlock, err := vm.NewBlock(parentid, height, nil)
 	if err != nil {
-		log.Error("error while creating genesis block: %v", err)
 		return err
 	}
-
-	// Put genesis block to state
-	if err := vm.state.PutBlock(genesisBlock); err != nil {
-		log.Error("error while saving genesis block: %v", err)
-		return err
+	genesisBlock.Accept()
+	parentid = genesisBlock.ID()
+	height++
+	for i := range(vm.zc.BlockGenerator()) {
+		b, e := vm.NewBlock(parentid, height, i)
+		if e != nil {
+			return e
+		}
+		b.Accept()
+		parentid = b.ID()
+		height++
 	}
 
-	// Accept the genesis block
-	// Sets [vm.lastAccepted] and [vm.preferred]
-	if err := genesisBlock.Accept(); err != nil {
-		return fmt.Errorf("error accepting genesis block: %w", err)
-	}
-
-	// Mark this vm's state as initialized, so we can skip initGenesis in further restarts
+	// set state as initialized, so we can skip initGenesis in further restarts
 	if err := vm.state.SetInitialized(); err != nil {
-		return fmt.Errorf("error while setting db to initialized: %w", err)
+		log.Error("error while setting db to initialized: %w", err)
+		return err
 	}
-
+	vm.bootstrappingGenesis = false
 	// Flush VM's database to underlying db
 	return vm.state.Commit()
 }
@@ -243,7 +259,7 @@ func (vm *VM) BuildBlock() (snowman.Block, error) {
 	preferredHeight := preferredBlock.Height()
 
 	// Build the block with preferred height
-	newBlock, err := vm.NewBlock(vm.preferred, preferredHeight+1, suggestResult.Result, time.Now())
+	newBlock, err := vm.NewBlock(vm.preferred, preferredHeight+1, suggestResult.Result)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't build block: %w", err)
 	}
@@ -311,11 +327,10 @@ func (vm *VM) ParseBlock(bytes []byte) (snowman.Block, error) {
 // - the block's parent is [parentID]
 // - the block's data is [data]
 // - the block's timestamp is [timestamp]
-func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMessage, timestamp time.Time) (*Block, error) {
+func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMessage) (*Block, error) {
 	block := &Block{
 		PrntID: parentID,
 		Hght:   height,
-		Tmstmp: timestamp.Unix(),
 		ZBlk:   zblock,
 	}
 
