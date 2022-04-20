@@ -64,6 +64,17 @@ func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoo
 	return nil
 }
 
+// tells the vm to mine a new block. not guaranteed this node will mine it!
+func (s *Service) MineBlock(_ *http.Request, args *SubmitTxArgs, reply *SuccessReply) error {
+	if !TestNet {
+		return errors.New("MineBlock can only be used on testnet and we are not on testnet!")
+	} 
+	log.Info("suggesting empty block to reap coinbase rewards. can only be used on testnet", "nodeid", s.vm.ctx.NodeID)
+	s.vm.NotifyBlockReady()
+	reply.Success = true
+	return nil
+}
+
 func (s *Service) Zcashrpc(_ *http.Request, args *zclient.ZCashRequest, reply *zclient.ZCashResponse) error {
 	log.Info("calling zcash rpc", "nodeid", s.vm.ctx.NodeID)
 	result := s.vm.zc.CallZcashJson(args.Method, args.Params)

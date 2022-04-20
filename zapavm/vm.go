@@ -37,7 +37,8 @@ var (
 	Version            = version.NewDefaultVersion(1, 2, 0)
 
 	_ block.ChainVM = &VM{}
-	MockZcash = true
+	MockZcash = false
+	TestNet = true
 )
 
 // VM implements the snowman.VM interface
