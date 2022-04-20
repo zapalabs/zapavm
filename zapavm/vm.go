@@ -36,6 +36,7 @@ var (
 	Version            = version.NewDefaultVersion(1, 2, 0)
 
 	_ block.ChainVM = &VM{}
+	MockZcash = true
 )
 
 // VM implements the snowman.VM interface
@@ -110,7 +111,7 @@ func (vm *VM) Initialize(
 			log.Info("Failed to marshal config, we must be local, getting node num from file")
 			i := 0
 			for i < 5 {
-				nid, _ := ioutil.ReadFile("/node-ids/" + strconv.Itoa(i))
+				nid, _ := ioutil.ReadFile(h + "/node-ids/" + strconv.Itoa(i))
 				snid := strings.ReplaceAll(string(nid), "NodeID-", "")
 				log.Info("comparing", "fvalue", snid, "nid", ctx.NodeID.String())
 				if snid == ctx.NodeID.String() {
@@ -120,6 +121,7 @@ func (vm *VM) Initialize(
 						Port: 8232 + i,
 						User: "test",
 						Password: "pw",
+						Mock: MockZcash,
 					}
 				}
 				i += 1
@@ -131,6 +133,7 @@ func (vm *VM) Initialize(
 				Port: data["zc_port"].(int),
 				User: data["zc_user"].(string),
 				Password: data["zc_password"].(string),
+				Mock: MockZcash,
 			}
 		}
     } else {
@@ -165,6 +168,7 @@ func (vm *VM) Initialize(
 }
 
 // Initializes Genesis if required
+// only init genesis and not whole chain
 func (vm *VM) initGenesis(genesisData []byte) error {
 
 	stateInitialized, err := vm.state.IsInitialized()
@@ -186,15 +190,15 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 	genesisBlock.Accept()
 	parentid = genesisBlock.ID()
 	height++
-	for i := range(vm.zc.BlockGenerator()) {
-		b, e := vm.NewBlock(parentid, height, i)
-		if e != nil {
-			return e
-		}
-		b.Accept()
-		parentid = b.ID()
-		height++
-	}
+	// for i := range(vm.zc.BlockGenerator()) {
+	// 	b, e := vm.NewBlock(parentid, height, i)
+	// 	if e != nil {
+	// 		return e
+	// 	}
+	// 	b.Accept()
+	// 	parentid = b.ID()
+	// 	height++
+	// }
 
 	// set state as initialized, so we can skip initGenesis in further restarts
 	if err := vm.state.SetInitialized(); err != nil {

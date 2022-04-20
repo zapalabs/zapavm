@@ -16,7 +16,7 @@ import (
 	"github.com/zapalabs/zapavm/zapavm"
 )
 
-const logFile = "/avalanche-logs/zapa.log"
+const logFile = "/Users/rkass/avalanche-logs/zapa.log"
 
 func main() {
 	version, err := PrintVersion()

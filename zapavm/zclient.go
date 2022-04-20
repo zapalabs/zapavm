@@ -42,6 +42,7 @@ type ZcashClient struct {
 	Port     int
 	User     string
 	Password string
+	Mock     bool
 }
 
 func (zc *ZcashClient) GetHost() string {
@@ -126,12 +127,20 @@ func (zc *ZcashClient) CallZcashJson(method string, params []interface{}) ZCashR
 }
 
 func (zc *ZcashClient) GetBlockCount() int {
+	if MockZcash {
+		return 20
+	}
 	blkcnt :=  zc.CallZcash("getblockcount", nil)
 	r, _ := strconv.Atoi(string(blkcnt.Result))
 	return r
 }
 
 func (zc *ZcashClient) GetZBlock(height int) nativejson.RawMessage {
+	if MockZcash {
+		log.Info("Calling mock get z block", "block num", height)
+		plan, _ := ioutil.ReadFile("/Users/rkass/repos/zapa/zapavm/zapavm/mocks/block" + strconv.Itoa(height + 1) + ".json")
+		return plan
+	}
 	resp := zc.CallZcashJson("getserializedblock", []interface{}{strconv.Itoa(height)})
 	return resp.Result
 }
@@ -152,6 +161,12 @@ func (zc *ZcashClient) BlockGenerator() chan nativejson.RawMessage {
 
 
 func (zc *ZcashClient) CallZcash(method string, zresult nativejson.RawMessage) ZCashResponse {
+	if MockZcash && method == "validateBlock" {
+		log.Info("Calling Mock zcash validate block", "params", zresult)
+		return ZCashResponse{
+			ID: "mockcall",
+		}
+	}
 	log.Info("Calling Zcash", "Method", method, "params", zresult)
 	var req *ZCashRequest2
 	if zresult != nil {
