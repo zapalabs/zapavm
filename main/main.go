@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/hashicorp/go-plugin"
@@ -14,9 +15,11 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
 	"github.com/zapalabs/zapavm/zapavm"
+	"github.com/zapalabs/zapavm/zapavm/zclient"
 )
 
 const logFile = "/Users/rkass/avalanche-logs/zapa.log"
+
 
 func main() {
 	version, err := PrintVersion()
@@ -27,8 +30,8 @@ func main() {
 				Hght:   0,
 				ZBlk:   nil,
 			}
-			zc := zapavm.ZcashClient{}
-			sugblk :=  zc.CallZcash("suggest", nil)
+			zc := &zclient.ZcashHTTPClient{}
+			sugblk := zc.CallZcash("suggest", nil)
 			block2 := &zapavm.Block{
 				PrntID: genesis.ID(),
 				Hght:   genesis.Height() + 1,
@@ -56,15 +59,23 @@ func main() {
 			return
 		}
 		if os.Args[1] == "iterateBlocks" {
-			zc := zapavm.ZcashClient{}
+			zc := &zclient.ZcashHTTPClient{}
 			zc.Port = 8233
 			x := 0
-			for i := range(zc.BlockGenerator()) {
+			for i := range(zclient.BlockGenerator(zc)) {
 				fmt.Print(i)
 				x++;
 			}
 			fmt.Print(x)
 			return
+		}
+		if os.Args[1] == "testLaunchScript" {
+			cmd, err := exec.Command("/bin/sh", "/Users/rkass/repos/zapa/zapavm/main/script.sh").Output()
+			if err != nil {
+				fmt.Printf("error %s", err)
+			}
+			output := string(cmd)
+			fmt.Print(output)
 		}
 	}
 
@@ -84,7 +95,15 @@ func main() {
 		fmt.Printf("Couldn't open log file handler %s", e)
 		os.Exit(1)
 	}
+	cmd, err := exec.Command("/bin/sh", "/Users/rkass/repos/zapa/zapavm/main/script.sh").Output()
+    if err != nil {
+		fmt.Printf("error %s", err)
+    }
+    output := string(cmd)
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlDebug, lh))
+
+	log.Info("executed command with", "output", output)
+
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: rpcchainvm.Handshake,
 		Plugins: map[string]plugin.Plugin{

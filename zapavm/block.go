@@ -45,18 +45,11 @@ type Block struct {
 
 // Verify returns nil iff this block is valid.
 func (b *Block) Verify() error {
-	log.Info("Calling verify block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height(), "boostrapping genesis", b.vm.bootstrappingGenesis)
-	if MockZcash {
-		log.Info("mock zcash, block is valid", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
-		b.vm.verifiedBlocks[b.ID()] = b
-		return nil
-	}
+	log.Info("Calling verify block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
 	if b.ZBlock() != nil {
-		r := b.vm.zc.CallZcash("validateBlock", b.ZBlock())
-		s := string(r.Result[:])
-		if s != "null" {
-			log.Error("validate block returned error " + s, "blocknum", b.Height())
-			return fmt.Errorf("error validating block")
+		err := b.vm.zc.ValidateBlock(b.ZBlock()) 
+		if err != nil {
+			return err
 		}
 	}
 	b.vm.verifiedBlocks[b.ID()] = b
@@ -76,15 +69,12 @@ func (b *Block) Initialize(bytes []byte, status choices.Status, vm *VM) {
 // Accept sets this block's status to Accepted and sets lastAccepted to this
 // block's ID and saves this info to b.vm.DB
 func (b *Block) Accept() error {
-	log.Info("Calling accept block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height(), "boostrapping genesis", b.vm.bootstrappingGenesis)
+	log.Info("Calling accept block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
 
-	if b.ZBlock() != nil && !b.vm.bootstrappingGenesis {
+	if b.ZBlock() != nil {
+		// Needs to be synced with Zcash Client
 		log.Info("Calling zcash submit block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
-		if MockZcash {
-			log.Info("Would have called zcash submitblock", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
-		} else {
-			b.vm.zc.CallZcash("submitblock", b.ZBlock())
-		}
+		b.vm.zc.CallZcash("submitblock", b.ZBlock())
 	}
 
 	b.SetStatus(choices.Accepted) // Change state of this block
@@ -110,7 +100,7 @@ func (b *Block) Accept() error {
 // Reject sets this block's status to Rejected and saves the status in state
 // Recall that b.vm.DB.Commit() must be called to persist to the DB
 func (b *Block) Reject() error {
-	log.Info("Calling reject block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height(), "boostrapping genesis", b.vm.bootstrappingGenesis)
+	log.Info("Calling reject block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
 
 	b.SetStatus(choices.Rejected) // Change state of this block
 	if err := b.vm.state.PutBlock(b); err != nil {

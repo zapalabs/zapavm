@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/json"
 	log "github.com/inconshreveable/log15"
+	"github.com/zapalabs/zapavm/zapavm/zclient"
 )
 
 var (
@@ -37,7 +38,7 @@ type EmptyArgs struct {
 }
 
 type ZcashHostInfo struct {
-	Host       string `json:"host"`
+	Host   string `json:"host"`
 	Port   int `json:"port"`
 }
 
@@ -49,13 +50,13 @@ type GetMempoolReply struct {
 	SubmittedTx []uint8
 }
 
-type SuccessOrNotReply struct {
+type SuccessReply struct {
 	Success bool
 }
 
 func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoolReply) error {
 	log.Info("submitting transaction. calling zcash.zendmany from", "nodeid", s.vm.ctx.NodeID)
-	result := s.vm.zc.ZcashSendMany(args.From, args.To, args.Amount)
+	result := s.vm.zc.SendMany(args.From, args.To, args.Amount)
 	s.vm.NotifyBlockReady()
 	reply.SubmittedTx = result.Result
 	s.vm.as.SendAppGossip(result.Result)
@@ -63,7 +64,7 @@ func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoo
 	return nil
 }
 
-func (s *Service) Zcashrpc(_ *http.Request, args *ZCashRequest, reply *ZCashResponse) error {
+func (s *Service) Zcashrpc(_ *http.Request, args *zclient.ZCashRequest, reply *zclient.ZCashResponse) error {
 	log.Info("calling zcash rpc", "nodeid", s.vm.ctx.NodeID)
 	result := s.vm.zc.CallZcashJson(args.Method, args.Params)
 	reply.Result = result.Result
@@ -73,10 +74,10 @@ func (s *Service) Zcashrpc(_ *http.Request, args *ZCashRequest, reply *ZCashResp
 }
 
 // needed to associate with local zcash rpc when multiple are running on same machine
-func (s *Service) AssociateZcashHostPort(_ *http.Request, args *ZcashHostInfo, reply *SuccessOrNotReply) error {
+func (s *Service) AssociateZcashHostPort(_ *http.Request, args *ZcashHostInfo, reply *SuccessReply) error {
 	log.Info("calling associate zcash host port", "rpc host", args.Host, "rpc port", args.Port)
-	s.vm.zc.Host = args.Host
-	s.vm.zc.Port = args.Port
+	s.vm.zc.SetHost(args.Host)
+	s.vm.zc.SetPort(args.Port)
 	reply.Success = true
 	return nil
 }

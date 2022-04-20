@@ -13,6 +13,7 @@ import (
 
 	"github.com/gorilla/rpc/v2"
 	log "github.com/inconshreveable/log15"
+	"github.com/zapalabs/zapavm/zapavm/zclient"
 
 	nativejson "encoding/json"
 
@@ -63,8 +64,7 @@ type VM struct {
 
 	as common.AppSender
 
-	zc ZcashClient
-	bootstrappingGenesis bool
+	zc zclient.ZcashClient
 }
 
 // Initialize this vm
@@ -88,9 +88,7 @@ func (vm *VM) Initialize(
 		log.Error("error initializing zcash VM: %v", err)
 		return err
 	}
-	log.Info("hello")
 	log.Info("Initializing zapa VM", "Version", version, "nodeid", ctx.NodeID, "config", configData)
-	vm.bootstrappingGenesis = true
 	vm.dbManager = dbManager
 	vm.ctx = ctx
 	vm.toEngine = toEngine
@@ -98,52 +96,7 @@ func (vm *VM) Initialize(
 	vm.as = as
 	var conf VMConfig
 	jerr := nativejson.Unmarshal(configData, &conf)
-    if jerr != nil {
-		// try reading a custom file
-		h, _ := os.LookupEnv("HOME")
-		plan, _ := ioutil.ReadFile(h +  "/.avalanchego/configs/vms/zapavm/node.json")
-		var data map[string]interface{}
-		log.Info("Attempting to marshal", "contents", plan)
-		err := nativejson.Unmarshal(plan, &data)
-		if err != nil {
-			log.Error("error", "e", err)
-			// must be local
-			log.Info("Failed to marshal config, we must be local, getting node num from file")
-			i := 0
-			for i < 5 {
-				nid, _ := ioutil.ReadFile(h + "/node-ids/" + strconv.Itoa(i))
-				snid := strings.ReplaceAll(string(nid), "NodeID-", "")
-				log.Info("comparing", "fvalue", snid, "nid", ctx.NodeID.String())
-				if snid == ctx.NodeID.String() {
-					log.Info("Initializing zcash client as node num", "num", i)
-					vm.zc = ZcashClient{
-						Host: "127.0.0.1",
-						Port: 8232 + i,
-						User: "test",
-						Password: "pw",
-						Mock: MockZcash,
-					}
-				}
-				i += 1
-			}
-		} else {
-			log.Info("successfuly sourced node config", "config", data)
-			vm.zc = ZcashClient {
-				Host: data["zc_host"].(string),
-				Port: data["zc_port"].(int),
-				User: data["zc_user"].(string),
-				Password: data["zc_password"].(string),
-				Mock: MockZcash,
-			}
-		}
-    } else {
-		vm.zc = ZcashClient{
-			Host:conf.ZcashHost,
-			Port: conf.ZcashPort,
-			User: conf.ZcashUser,
-			Password: conf.ZcashPassword,
-		}
-	}
+	vm.zc = getZCashClient(ctx, conf, jerr == nil)
 
 	// Create new state
 	vm.state = NewState(vm.dbManager.Current().Database, vm)
@@ -159,12 +112,57 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	//call out to zcash to get the block info
-
 	ctx.Log.Info("initializing last accepted block as %s", lastAccepted)
 
 	// Build off the most recently accepted block
 	return vm.SetPreference(lastAccepted)
+}
+
+func getZCashClient(ctx *snow.Context, conf VMConfig, useConf bool) zclient.ZcashClient {
+	if MockZcash {
+		return zclient.NewDefaultMock()
+	}
+    if ! useConf {
+		// try reading a custom file
+		h, _ := os.LookupEnv("HOME")
+		plan, _ := ioutil.ReadFile(h +  "/.avalanchego/configs/vms/zapavm/node.json")
+		var data map[string]interface{}
+		log.Info("Attempting to marshal", "contents", plan)
+		err := nativejson.Unmarshal(plan, &data)
+		if err != nil {
+			log.Info("error reading local node cofing...getting node config from file based onour node number", "e", err)
+			i := 0
+			for i < 5 {
+				nid, _ := ioutil.ReadFile(h + "/node-ids/" + strconv.Itoa(i))
+				snid := strings.ReplaceAll(string(nid), "NodeID-", "")
+				log.Info("comparing", "fvalue", snid, "nid", ctx.NodeID.String())
+				if snid == ctx.NodeID.String() {
+					log.Info("Initializing zcash client as node num", "num", i)
+					return &zclient.ZcashHTTPClient {
+						Host: "127.0.0.1",
+						Port: 8232 + i,
+						User: "test",
+						Password: "pw",
+					}
+				}
+				i += 1
+			}
+		} else {
+			log.Info("successfuly sourced node config", "config", data)
+			return &zclient.ZcashHTTPClient {
+				Host: data["zc_host"].(string),
+				Port: data["zc_port"].(int),
+				User: data["zc_user"].(string),
+				Password: data["zc_password"].(string),
+			}
+		}
+    } 
+	return &zclient.ZcashHTTPClient{
+		Host:conf.ZcashHost,
+		Port: conf.ZcashPort,
+		User: conf.ZcashUser,
+		Password: conf.ZcashPassword,
+	}
 }
 
 // Initializes Genesis if required
@@ -189,23 +187,12 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 	}
 	genesisBlock.Accept()
 	parentid = genesisBlock.ID()
-	height++
-	// for i := range(vm.zc.BlockGenerator()) {
-	// 	b, e := vm.NewBlock(parentid, height, i)
-	// 	if e != nil {
-	// 		return e
-	// 	}
-	// 	b.Accept()
-	// 	parentid = b.ID()
-	// 	height++
-	// }
 
 	// set state as initialized, so we can skip initGenesis in further restarts
 	if err := vm.state.SetInitialized(); err != nil {
 		log.Error("error while setting db to initialized: %w", err)
 		return err
 	}
-	vm.bootstrappingGenesis = false
 	// Flush VM's database to underlying db
 	return vm.state.Commit()
 }
@@ -253,7 +240,7 @@ func (vm *VM) HealthCheck() (interface{}, error) { return nil, nil }
 
 // BuildBlock returns a block that this vm wants to add to consensus
 func (vm *VM) BuildBlock() (snowman.Block, error) {
-	suggestResult := vm.zc.CallZcash("suggest", nil)
+	suggestResult := vm.zc.SuggestBlock()
 
 	// Gets Preferred Block
 	preferredBlock, err := vm.getBlock(vm.preferred)
