@@ -132,7 +132,7 @@ func getZCashClient(ctx *snow.Context, conf VMConfig, useConf bool) zclient.Zcas
 		if err != nil {
 			log.Info("error reading local node cofing...getting node config from file based onour node number", "e", err)
 			i := 0
-			for i < 5 {
+			for i < 6 {
 				nid, _ := ioutil.ReadFile(h + "/node-ids/" + strconv.Itoa(i))
 				snid := strings.ReplaceAll(string(nid), "NodeID-", "")
 				log.Info("comparing", "fvalue", snid, "nid", ctx.NodeID.String())
