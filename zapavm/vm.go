@@ -131,7 +131,7 @@ func getZCashClient(ctx *snow.Context, conf VMConfig, useConf bool) zclient.Zcas
 		log.Info("Attempting to marshal", "contents", plan)
 		err := nativejson.Unmarshal(plan, &data)
 		if err != nil {
-			log.Info("error reading local node cofing...getting node config from file based onour node number", "e", err)
+			log.Info("error reading local node config...getting node config from file based onour node number", "e", err)
 			i := 0
 			for i < 6 {
 				nid, _ := ioutil.ReadFile(h + "/node-ids/" + strconv.Itoa(i))
