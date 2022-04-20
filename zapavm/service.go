@@ -64,7 +64,7 @@ func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoo
 	return nil
 }
 
-// tells the vm to mine a new block. not guaranteed this node will mine it!
+// tells the vm to mine a new block. will usually (but not 100%) cause this node to mine a block
 func (s *Service) MineBlock(_ *http.Request, args *SubmitTxArgs, reply *SuccessReply) error {
 	if !TestNet {
 		return errors.New("MineBlock can only be used on testnet and we are not on testnet")
