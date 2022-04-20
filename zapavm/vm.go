@@ -134,9 +134,10 @@ func getZCashClient(ctx *snow.Context, conf VMConfig, useConf bool) zclient.Zcas
 			log.Info("error reading local node config...getting node config from file based onour node number", "e", err)
 			i := 0
 			for i < 6 {
-				nid, _ := ioutil.ReadFile(h + "/node-ids/" + strconv.Itoa(i))
+				fname := h + "/node-ids/" + strconv.Itoa(i)
+				nid, _ := ioutil.ReadFile(fname)
 				snid := strings.ReplaceAll(string(nid), "NodeID-", "")
-				log.Info("comparing", "fvalue", snid, "nid", ctx.NodeID.String())
+				log.Info("comparing", "file name", fname, "fvalue", snid, "nid", ctx.NodeID.String())
 				if snid == ctx.NodeID.String() {
 					log.Info("Initializing zcash client as node num", "num", i)
 					return &zclient.ZcashHTTPClient {

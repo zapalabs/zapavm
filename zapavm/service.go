@@ -67,7 +67,7 @@ func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoo
 // tells the vm to mine a new block. not guaranteed this node will mine it!
 func (s *Service) MineBlock(_ *http.Request, args *SubmitTxArgs, reply *SuccessReply) error {
 	if !TestNet {
-		return errors.New("MineBlock can only be used on testnet and we are not on testnet!")
+		return errors.New("MineBlock can only be used on testnet and we are not on testnet")
 	} 
 	log.Info("suggesting empty block to reap coinbase rewards. can only be used on testnet", "nodeid", s.vm.ctx.NodeID)
 	s.vm.NotifyBlockReady()
