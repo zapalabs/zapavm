@@ -153,18 +153,18 @@ func (zc *ZcashHTTPClient) getZcashResponse(b []byte) ZCashResponse {
 	log.Info("Connecting to zcash", "Compelte Host", completeHost, "data", serializedData)
 	resp, err := http.Post(completeHost, "application/json", serializedData)
 	if err != nil {
-		log.Error("Post: %v", err)
+		log.Error("Error getting zcash response", "error", err)
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Error("ReadAll: %v", err)
+		log.Error("Error reading zcash response", "error", err)
 	}
 	zresp := ZCashResponse{}
 	nativejson.Unmarshal([]byte(body), &zresp)
 
 	if err != nil {
-		log.Error("Unmarshal: %v", err)
+		log.Error("Error unmarshalling zcash response", "error", err)
 	}
 	return zresp
 }
