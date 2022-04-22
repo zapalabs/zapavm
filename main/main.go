@@ -111,7 +111,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlDebug, lh))
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, lh))
 
 	log.Info("Starting Zapa VM")
 
