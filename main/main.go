@@ -18,10 +18,16 @@ import (
 	"github.com/zapalabs/zapavm/zapavm/zclient"
 )
 
-const logFile = "/Users/rkass/avalanche-logs/zapa.log"
+
 
 
 func main() {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		os.Exit(1)
+	}
+	logFile := homeDir + "/avalanche-logs/zapamain.log"
+
 	version, err := PrintVersion()
 	if len(os.Args) == 2 {
 		if os.Args[1] == "testBlockSerialization" {
@@ -77,6 +83,15 @@ func main() {
 			output := string(cmd)
 			fmt.Print(output)
 		}
+		if os.Args[1] == "generatevmid" {
+			// doesn't work
+			id,err := ids.FromString("zapavm")
+			if err != nil {
+				fmt.Printf("error %s", err)
+				os.Exit(1)
+			}
+			fmt.Print(id)
+		}
 	}
 
 	if err != nil {
@@ -95,14 +110,10 @@ func main() {
 		fmt.Printf("Couldn't open log file handler %s", e)
 		os.Exit(1)
 	}
-	cmd, err := exec.Command("/bin/sh", "/Users/rkass/repos/zapa/zapavm/main/script.sh").Output()
-    if err != nil {
-		fmt.Printf("error %s", err)
-    }
-    output := string(cmd)
+
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlDebug, lh))
 
-	log.Info("executed command with", "output", output)
+	log.Info("Starting Zapa VM")
 
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: rpcchainvm.Handshake,

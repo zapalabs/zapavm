@@ -22,8 +22,9 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/version"
 )
@@ -35,7 +36,6 @@ const (
 
 var (
 	Version            = version.NewDefaultVersion(1, 2, 0)
-
 	_ block.ChainVM = &VM{}
 	MockZcash = false
 	TestNet = true
@@ -66,6 +66,9 @@ type VM struct {
 	as common.AppSender
 
 	zc zclient.ZcashClient
+
+	// Indicates that this VM has finised bootstrapping for the chain
+	bootstrapped utils.AtomicBool
 }
 
 // Initialize this vm
@@ -86,7 +89,7 @@ func (vm *VM) Initialize(
 ) error {
 	version, err := vm.Version()
 	if err != nil {
-		log.Error("error initializing zcash VM: %v", err)
+		log.Error("error initializing Zapa VM: %v", err)
 		return err
 	}
 	log.Info("Initializing zapa VM", "Version", version, "nodeid", ctx.NodeID, "config", configData)
@@ -98,7 +101,6 @@ func (vm *VM) Initialize(
 	var conf VMConfig
 	jerr := nativejson.Unmarshal(configData, &conf)
 	vm.zc = getZCashClient(ctx, conf, jerr == nil)
-
 	// Create new state
 	vm.state = NewState(vm.dbManager.Current().Database, vm)
 
@@ -121,6 +123,7 @@ func (vm *VM) Initialize(
 
 func getZCashClient(ctx *snow.Context, conf VMConfig, useConf bool) zclient.ZcashClient {
 	if MockZcash {
+		log.Info("Using mock zcash client")
 		return zclient.NewDefaultMock()
 	}
     if ! useConf {
@@ -159,6 +162,7 @@ func getZCashClient(ctx *snow.Context, conf VMConfig, useConf bool) zclient.Zcas
 			}
 		}
     } 
+	log.Info("Using default client")
 	return &zclient.ZcashHTTPClient{
 		Host:conf.ZcashHost,
 		Port: conf.ZcashPort,
@@ -167,10 +171,60 @@ func getZCashClient(ctx *snow.Context, conf VMConfig, useConf bool) zclient.Zcas
 	}
 }
 
+// SetState sets this VM state according to given snow.State
+func (vm *VM) SetState(state snow.State) error {
+	switch state {
+	// Engine reports it's bootstrapping
+	case snow.Bootstrapping:
+		return vm.onBootstrapStarted()
+	case snow.NormalOp:
+		// Engine reports it can start normal operations
+		return vm.onNormalOperationsStarted()
+	default:
+		return snow.ErrUnknownState
+	}
+}
+
+// VerifyHeightIndex should return:
+// - nil if the height index is available.
+// - ErrHeightIndexedVMNotImplemented if the height index is not supported.
+// - ErrIndexIncomplete if the height index is not currently available.
+// - Any other non-standard error that may have occurred when verifying the
+//   index.
+func (vm *VM) VerifyHeightIndex() error {
+	log.Info("verify height index")
+	return block.ErrHeightIndexedVMNotImplemented
+}
+
+// GetBlockIDAtHeight returns the ID of the block that was accepted with
+// [height].
+func (vm *VM) GetBlockIDAtHeight(height uint64) (ids.ID, error) {
+	log.Info("get block id at height", "height", height)
+	return ids.Empty, block.ErrHeightIndexedVMNotImplemented
+}
+
+// onBootstrapStarted marks this VM as bootstrapping
+func (vm *VM) onBootstrapStarted() error {
+	log.Info("on bootstrap started")
+	vm.bootstrapped.SetValue(false)
+	return nil
+}
+
+// onNormalOperationsStarted marks this VM as bootstrapped
+func (vm *VM) onNormalOperationsStarted() error {
+	// No need to set it again
+	log.Info("on normal operations started")
+	if vm.bootstrapped.GetValue() {
+		return nil
+	}
+	vm.bootstrapped.SetValue(true)
+	return nil
+}
+
 // Initializes Genesis if required
 // only init genesis and not whole chain
 func (vm *VM) initGenesis(genesisData []byte) error {
-
+	log.Info("initializing from genesis")
 	stateInitialized, err := vm.state.IsInitialized()
 	if err != nil {
 		return err
@@ -178,6 +232,7 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 
 	// if state is already initialized, skip init genesis.
 	if stateInitialized {
+		log.Info("already initialized, skipping init genesis")
 		return nil
 	}
 
@@ -195,6 +250,8 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 		log.Error("error while setting db to initialized: %w", err)
 		return err
 	}
+
+	log.Info("finished initialization, committing initialized state")
 	// Flush VM's database to underlying db
 	return vm.state.Commit()
 }
@@ -372,7 +429,7 @@ func (vm *VM) Version() (string, error) {
 }
 
 func (vm *VM) Connected(id ids.ShortID, v version.Application) error {
-	log.Info("Connected to node id", "node id", id, "app version", v.String())
+	log.Debug("Connected to node id", "node id", id, "app version", v.String())
 	return nil // noop
 }
 
