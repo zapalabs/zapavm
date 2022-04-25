@@ -135,8 +135,15 @@ func (zc *ZcashHTTPClient) SubmitBlock(zblk nativejson.RawMessage) error {
 	return nil
 }
 
-func (zc *ZcashHTTPClient) SuggestBlock() ZCashResponse {
-	return zc.CallZcash("suggest", nil)
+func (zc *ZcashHTTPClient) SuggestBlock() ZcashBlockResult {
+	resp := zc.CallZcash("suggest", nil)
+	zbr := ZcashBlockResult{}
+	err := nativejson.Unmarshal(resp.Result, zbr)
+	if err != nil {
+		log.Error("Error unmarshalling block result")
+	}
+	zbr.Error = err
+	return zbr
 }
 
 func (zc *ZcashHTTPClient) CallZcash(method string, zresult nativejson.RawMessage) ZCashResponse {

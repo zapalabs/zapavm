@@ -38,7 +38,7 @@ type ZcashClient interface {
 	GetZBlock(height int) ZcashBlockResult
 	ValidateBlock(zblk nativejson.RawMessage) error
 	SubmitBlock(zblk nativejson.RawMessage) error
-	SuggestBlock() ZCashResponse
+	SuggestBlock() ZcashBlockResult
 	CallZcash(method string, zresult nativejson.RawMessage) ZCashResponse
 	CallZcashJson(method string, params []interface{}) ZCashResponse
 }

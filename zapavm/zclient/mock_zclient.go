@@ -64,9 +64,9 @@ func (zc *ZCashMockClient) SubmitBlock(zblk nativejson.RawMessage) error {
 	return nil
 }
 
-func (zc *ZCashMockClient) SuggestBlock() ZCashResponse {
+func (zc *ZCashMockClient) SuggestBlock() ZcashBlockResult {
 	log.Warn("Calling ZCashMockClient suggest block. Returning empty response")
-	return ZCashResponse{}
+	return ZcashBlockResult{}
 }
 
 func (zc *ZCashMockClient) CallZcash(method string, zresult nativejson.RawMessage) ZCashResponse {

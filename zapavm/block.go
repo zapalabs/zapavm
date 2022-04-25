@@ -5,7 +5,6 @@ package zapavm
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	nativejson "encoding/json"
@@ -35,6 +34,7 @@ type Block struct {
 	PrntID ids.ID                `serialize:"true" json:"parentID"`  // parent's ID
 	Hght   uint64                `serialize:"true" json:"height"`    // This block's height. The genesis block is at height 0.
 	ZBlk   nativejson.RawMessage `serialize:"true" json:"zblock"`    // zcash block
+	timestamp int64              `serialize:"true" json:"timestamp"`
 
 	id     ids.ID         // hold this block's ID
 	bytes  []byte         // this block's encoded bytes
@@ -123,14 +123,7 @@ func (b *Block) Height() uint64 { return b.Hght }
 // Timestamp returns this block's time. The genesis block has time 0. For now, return
 // the root timesamp (2022-01-01) for genesis plus one second for each additional block
 func (b *Block) Timestamp() time.Time { 
-	layout := "2006-01-02T15:04:05.000Z"
-	str := "2022-01-01T00:00:00.00Z"
-	t, err := time.Parse(layout, str)
-
-	if err != nil {
-		fmt.Println(err)
-	}
-	return t.Add(time.Second * time.Duration(b.Height()))
+	return time.Unix(b.timestamp, 0)
 }
 
 // Status returns the status of this block

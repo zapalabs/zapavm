@@ -206,6 +206,14 @@ func (vm *VM) GetBlockIDAtHeight(height uint64) (ids.ID, error) {
 	return vm.state.GetBlockIDAtHeight(height)
 }
 
+func (vm *VM) GetBlockAtHeight (height uint64) (snowman.Block, error) {
+	blockId, e := vm.GetBlockIDAtHeight(height)
+	if e != nil {
+		return &Block{}, fmt.Errorf("error getting block at height %d : %e", height, e)
+	}
+	return vm.GetBlock(blockId)
+}
+
 // onBootstrapStarted marks this VM as bootstrapping
 func (vm *VM) onBootstrapStarted() error {
 	log.Info("on bootstrap started")
@@ -234,30 +242,69 @@ func (vm *VM) initAndSync(genesisData []byte) error {
 	if err != nil {
 		return err
 	}
-	// if state is already initialized, skip init genesis.
-	if stateInitialized {
-		// vm.preferred.
-		log.Info("already initialized, skipping init genesis")
-		return nil
-	}
-
-	var height uint64 = 0
-	parentid := ids.Empty
-	genesisBlock, err := vm.NewBlock(parentid, height, nil)
+	zcBlkCount, err := vm.zc.GetBlockCount()
 	if err != nil {
+		log.Error("Error getting block count from zcash", err)
 		return err
+	}	
+	
+	preferredBlock, err := vm.getBlock(vm.preferred)
+	if err != nil {
+		return fmt.Errorf("couldn't get preferred block: %w", err)
 	}
-	genesisBlock.Accept()
-	parentid = genesisBlock.ID()
+	preferredHeight := int(preferredBlock.Height())
 
-	// set state as initialized, so we can skip initGenesis in further restarts
+	log.Info("got heights", "zapavm height", preferredHeight, "zcash height", zcBlkCount)
+
+
+	if stateInitialized {
+
+		if zcBlkCount > preferredHeight {
+			return fmt.Errorf("Cannot initialize vm when zcash has existing blocks this VM doesn't know about")
+		} 
+
+		for preferredHeight > zcBlkCount {
+			zcBlkCount += 1
+			log.Info("Syncing block with zcash", "block number", zcBlkCount)
+			snoblk, e := vm.GetBlockAtHeight(uint64(zcBlkCount))
+			if e != nil {
+				return e
+			}
+			blk, ok := snoblk.(*Block)
+			if !ok {
+				return fmt.Errorf("Failed to cast snowman block to Block")
+			}
+			e = vm.zc.SubmitBlock(blk.ZBlock())
+			if e != nil {
+				return fmt.Errorf("error while submitting block when syncing zcash %e", e)
+			}
+		}
+	} else {
+		// Initialize
+		log.Info("Initializing zapavm by ingesting existing zcash blocks")
+		var height uint64 = 0
+		parentid := ids.Empty
+		for blk := range zclient.BlockGenerator(vm.zc) {
+			if blk.Error != nil {
+				return fmt.Errorf("Error when retrieving block from zcash %e", blk.Error)
+			}
+			zapablk, err := vm.NewBlock(parentid, height, blk.Block, blk.Timestamp)
+			if err != nil {
+				return err
+			}
+			zapablk.Accept()
+			parentid = zapablk.ID()
+			height++
+		}
+	}
+
+	// set state as initialized
 	if err := vm.state.SetInitialized(); err != nil {
 		log.Error("error while setting db to initialized: %w", err)
 		return err
 	}
 
 	log.Info("finished initialization, committing initialized state")
-	// Flush VM's database to underlying db
 	return vm.state.Commit()
 }
 
@@ -305,6 +352,9 @@ func (vm *VM) HealthCheck() (interface{}, error) { return nil, nil }
 // BuildBlock returns a block that this vm wants to add to consensus
 func (vm *VM) BuildBlock() (snowman.Block, error) {
 	suggestResult := vm.zc.SuggestBlock()
+	if suggestResult.Error != nil {
+		return nil, fmt.Errorf("Error suggesting block %e", suggestResult.Error)
+	}
 
 	// Gets Preferred Block
 	preferredBlock, err := vm.getBlock(vm.preferred)
@@ -314,7 +364,7 @@ func (vm *VM) BuildBlock() (snowman.Block, error) {
 	preferredHeight := preferredBlock.Height()
 
 	// Build the block with preferred height
-	newBlock, err := vm.NewBlock(vm.preferred, preferredHeight+1, suggestResult.Result)
+	newBlock, err := vm.NewBlock(vm.preferred, preferredHeight+1, suggestResult.Block, suggestResult.Timestamp)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't build block: %w", err)
 	}
@@ -351,7 +401,7 @@ func (vm *VM) getBlock(blkID ids.ID) (*Block, error) {
 // LastAccepted returns the block most recently accepted
 func (vm *VM) LastAccepted() (ids.ID, error) { return vm.state.GetLastAccepted() }
 
-// ParseBlock parses [bytes] to a snowman.Block
+// ParseBlock parses [bytes] to a Block
 // This function is used by the vm's state to unmarshal blocks saved in state
 // and by the consensus layer when it receives the byte representation of a block
 // from another node
@@ -382,11 +432,12 @@ func (vm *VM) ParseBlock(bytes []byte) (snowman.Block, error) {
 // - the block's parent is [parentID]
 // - the block's data is [data]
 // - the block's timestamp is [timestamp]
-func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMessage) (*Block, error) {
+func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMessage, timestamp int64) (*Block, error) {
 	block := &Block{
 		PrntID: parentID,
 		Hght:   height,
 		ZBlk:   zblock,
+		timestamp: timestamp,
 	}
 
 	// Get the byte representation of the block
