@@ -148,7 +148,7 @@ func getZCashClient(ctx *snow.Context, conf VMConfig, useConf bool) zclient.Zcas
 					log.Info("Initializing zcash client as node num", "num", i)
 					return &zclient.ZcashHTTPClient {
 						Host: "127.0.0.1",
-						Port: 8232 + i,
+						Port: 8232 + i + 1,
 						User: "test",
 						Password: "pw",
 					}
@@ -248,17 +248,17 @@ func (vm *VM) initAndSync(genesisData []byte) error {
 		return err
 	}	
 	
-	preferredBlock, err := vm.getBlock(vm.preferred)
-	if err != nil {
-		return fmt.Errorf("couldn't get preferred block: %w", err)
-	}
-	preferredHeight := int(preferredBlock.Height())
-
-	log.Info("got heights", "zapavm height", preferredHeight, "zcash height", zcBlkCount)
+	log.Info("got height for zcash", "zcash height", zcBlkCount)
 
 
 	if stateInitialized {
+		preferredBlock, err := vm.getBlock(vm.preferred)
+		if err != nil {
+			return fmt.Errorf("couldn't get preferred block: %w", err)
+		}
+		preferredHeight := int(preferredBlock.Height())
 
+		log.Info("got zapavm height", "zapavm height", preferredHeight)
 		if zcBlkCount > preferredHeight {
 			return fmt.Errorf("Cannot initialize vm when zcash has existing blocks this VM doesn't know about")
 		} 
@@ -437,7 +437,7 @@ func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMess
 		PrntID: parentID,
 		Hght:   height,
 		ZBlk:   zblock,
-		timestamp: timestamp,
+		CreationTime: timestamp,
 	}
 
 	// Get the byte representation of the block

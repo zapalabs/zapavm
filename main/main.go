@@ -18,9 +18,6 @@ import (
 	"github.com/zapalabs/zapavm/zapavm/zclient"
 )
 
-
-
-
 func main() {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -69,7 +66,8 @@ func main() {
 			zc.Port = 8233
 			x := 0
 			for i := range(zclient.BlockGenerator(zc)) {
-				fmt.Print(i)
+				fmt.Print(i.Block)
+				fmt.Print(i.Timestamp)
 				x++;
 			}
 			fmt.Print(x)

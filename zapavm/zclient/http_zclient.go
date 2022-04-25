@@ -89,16 +89,27 @@ func (zc *ZcashHTTPClient) GetBlockCount() (int, error) {
 	return r, blkcnt.Error
 }
 
+func blockResultFromResp(resp ZCashResponse) ZcashBlockResult {
+	var arr []ZcashBlockResult
+	zbr := ZcashBlockResult{}
+	err := nativejson.Unmarshal(resp.Result, &arr)
+	if err != nil {
+		log.Error("Error unmarshalling block result", "error", err)
+		zbr.Error = err
+		return zbr
+	} else if len(arr) != 1 {
+		errstr := fmt.Errorf("Received unexpected length of response. expected 1. received %d", len(arr))
+		log.Error("error: ", errstr)
+		zbr.Error = errstr
+		return zbr
+	}
+	return arr[0]
+}
+
 func (zc *ZcashHTTPClient) GetZBlock(height int) ZcashBlockResult {
 	log.Info("Calling ZcashHttpClient method: GetBlockCount", "height", height)
 	resp := zc.CallZcashJson("getserializedblock", []interface{}{strconv.Itoa(height)})
-	zbr := ZcashBlockResult{}
-	err := nativejson.Unmarshal(resp.Result, zbr)
-	if err != nil {
-		log.Error("Error unmarshalling block result")
-	}
-	zbr.Error = err
-	return zbr
+	return blockResultFromResp(resp)
 }
 
 func (zc *ZcashHTTPClient) CallZcashJson(method string, params []interface{}) ZCashResponse {
@@ -137,13 +148,7 @@ func (zc *ZcashHTTPClient) SubmitBlock(zblk nativejson.RawMessage) error {
 
 func (zc *ZcashHTTPClient) SuggestBlock() ZcashBlockResult {
 	resp := zc.CallZcash("suggest", nil)
-	zbr := ZcashBlockResult{}
-	err := nativejson.Unmarshal(resp.Result, zbr)
-	if err != nil {
-		log.Error("Error unmarshalling block result")
-	}
-	zbr.Error = err
-	return zbr
+	return blockResultFromResp(resp)
 }
 
 func (zc *ZcashHTTPClient) CallZcash(method string, zresult nativejson.RawMessage) ZCashResponse {
