@@ -79,17 +79,26 @@ func (zc *ZcashHTTPClient) SendMany(from string, to string, amount float32) ZCas
 	return zc.CallZcashJson("z_sendmany", params)
 }
 
-func (zc *ZcashHTTPClient) GetBlockCount() int {
+func (zc *ZcashHTTPClient) GetBlockCount() (int, error) {
 	log.Info("Calling ZcashHttpClient method: GetBlockCount")
 	blkcnt :=  zc.CallZcash("getblockcount", nil)
-	r, _ := strconv.Atoi(string(blkcnt.Result))
-	return r
+	r, e := strconv.Atoi(string(blkcnt.Result))
+	if blkcnt.Error == nil {
+		return r, e
+	}
+	return r, blkcnt.Error
 }
 
-func (zc *ZcashHTTPClient) GetZBlock(height int) nativejson.RawMessage {
+func (zc *ZcashHTTPClient) GetZBlock(height int) ZcashBlockResult {
 	log.Info("Calling ZcashHttpClient method: GetBlockCount", "height", height)
 	resp := zc.CallZcashJson("getserializedblock", []interface{}{strconv.Itoa(height)})
-	return resp.Result
+	zbr := ZcashBlockResult{}
+	err := nativejson.Unmarshal(resp.Result, zbr)
+	if err != nil {
+		log.Error("Error unmarshalling block result")
+	}
+	zbr.Error = err
+	return zbr
 }
 
 func (zc *ZcashHTTPClient) CallZcashJson(method string, params []interface{}) ZCashResponse {
@@ -98,7 +107,7 @@ func (zc *ZcashHTTPClient) CallZcashJson(method string, params []interface{}) ZC
 	req := &ZCashRequest{Params: params, Method: method, ID: "fromgo"}
 	b, err := nativejson.Marshal(req)
 	if err != nil {
-		fmt.Println(err)
+		log.Error("Error marshalling request to json")
 	}
 	return zc.getZcashResponse(b)
 }
@@ -106,6 +115,10 @@ func (zc *ZcashHTTPClient) CallZcashJson(method string, params []interface{}) ZC
 func (zc *ZcashHTTPClient) ValidateBlock(zblk nativejson.RawMessage) error {
 	log.Info("Calling ZcashHttpClient ValidateBlock")
 	r := zc.CallZcash("validateBlock", zblk)
+	if r.Error != nil {
+		log.Error("validate block call did not succeed", "error", r.Error)
+		return r.Error
+	}
 	s := string(r.Result[:])
 	if s != "null" {
 		log.Error("validate block returned error")
@@ -116,7 +129,7 @@ func (zc *ZcashHTTPClient) ValidateBlock(zblk nativejson.RawMessage) error {
 
 func (zc *ZcashHTTPClient) SubmitBlock(zblk nativejson.RawMessage) error {
 	resp := zc.CallZcash("submitblock", zblk)
-	if resp.Error != "" {
+	if resp.Error != nil {
 		return fmt.Errorf("error submitting block %s", resp.Error)
 	}
 	return nil

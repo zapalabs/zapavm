@@ -30,8 +30,7 @@ var (
 // Each block contains:
 // 1) ParentID
 // 2) Height
-// 3) Timestamp
-// 4) A piece of data (a string)
+// 3) ZBlk -- the serialized zcash block
 type Block struct {
 	PrntID ids.ID                `serialize:"true" json:"parentID"`  // parent's ID
 	Hght   uint64                `serialize:"true" json:"height"`    // This block's height. The genesis block is at height 0.
@@ -71,10 +70,10 @@ func (b *Block) Initialize(bytes []byte, status choices.Status, vm *VM) {
 func (b *Block) Accept() error {
 	log.Info("Calling accept block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
 
-	if b.ZBlock() != nil {
+	if b.Height() > 0 {
 		// Needs to be synced with Zcash Client
 		log.Info("Calling zcash submit block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
-		b.vm.zc.CallZcash("submitblock", b.ZBlock())
+		b.vm.zc.SubmitBlock(b.ZBlock())
 	}
 
 	b.SetStatus(choices.Accepted) // Change state of this block

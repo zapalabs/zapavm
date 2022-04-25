@@ -2,6 +2,7 @@ package zclient
 
 import (
 	nativejson "encoding/json"
+	"fmt"
 	"io/ioutil"
 	"strconv"
 
@@ -35,19 +36,22 @@ func (zc *ZCashMockClient) SendMany(from string, to string, amount float32) ZCas
 	log.Warn(errString, "from", from, "to", to, "amount", amount)
 
 	return ZCashResponse{
-		Error: errString,
+		Error: fmt.Errorf(errString),
 	}
 }
 
-func (zc *ZCashMockClient) GetBlockCount() int {
+func (zc *ZCashMockClient) GetBlockCount() (int, error) {
 	log.Info("Calling ZcashMockClient GetBlockCount")
-	return zc.InitialBlocks
+	return zc.InitialBlocks, nil
 }
 
-func (zc *ZCashMockClient) GetZBlock(height int) nativejson.RawMessage {
+func (zc *ZCashMockClient) GetZBlock(height int) ZcashBlockResult {
 	log.Info("Calling ZcashMockClient GetZBlock", "height", height)
 	plan, _ := ioutil.ReadFile("/Users/rkass/repos/zapa/zapavm/zapavm/mocks/block" + strconv.Itoa(height + 1) + ".json")
-	return plan
+	return ZcashBlockResult{
+		Block: plan,
+		Timestamp: int64(height),
+	}
 }
 
 func (zc *ZCashMockClient) ValidateBlock(zblk nativejson.RawMessage) error {
@@ -70,7 +74,7 @@ func (zc *ZCashMockClient) CallZcash(method string, zresult nativejson.RawMessag
 	log.Warn(errString)
 
 	return ZCashResponse{
-		Error: errString,
+		Error: fmt.Errorf(errString),
 	}
 }
 
@@ -79,6 +83,6 @@ func (zc *ZCashMockClient) CallZcashJson(method string, params []interface{}) ZC
 	log.Warn(errString)
 
 	return ZCashResponse{
-		Error: errString,
+		Error: fmt.Errorf(errString),
 	}
 }

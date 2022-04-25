@@ -2,11 +2,13 @@ package zclient
 
 import (
 	nativejson "encoding/json"
+
+	log "github.com/inconshreveable/log15"
 )
 
 type ZCashResponse struct {
 	Result nativejson.RawMessage `json:"result"`
-	Error  string                `json:"error"`
+	Error  error                 `json:"error"`
 	ID     string                `json:"id"`
 }
 
@@ -22,12 +24,18 @@ type ZCashRequestJson struct {
 	ID     string                `json:"id"`
 }
 
+type ZcashBlockResult struct {
+	Block nativejson.RawMessage `json:"block"`
+	Timestamp int64             `json:"timestamp"`
+	Error error
+}
+
 type ZcashClient interface {
 	SetHost(host string)
 	SetPort(port int)
 	SendMany(from string, to string, amount float32) ZCashResponse
-	GetBlockCount() int
-	GetZBlock(height int) nativejson.RawMessage
+	GetBlockCount() (int, error)
+	GetZBlock(height int) ZcashBlockResult
 	ValidateBlock(zblk nativejson.RawMessage) error
 	SubmitBlock(zblk nativejson.RawMessage) error
 	SuggestBlock() ZCashResponse
@@ -35,10 +43,15 @@ type ZcashClient interface {
 	CallZcashJson(method string, params []interface{}) ZCashResponse
 }
 
-func BlockGenerator(zc ZcashClient) chan nativejson.RawMessage {
-	c := make(chan nativejson.RawMessage)
+func BlockGenerator(zc ZcashClient) chan ZcashBlockResult {
+	c := make(chan ZcashBlockResult)
+	var e error
 	go func() {
-		numBlks := zc.GetBlockCount()
+		numBlks, err := zc.GetBlockCount()
+		if err != nil {
+			e = err
+			return
+		}
 		blkcnt := 0
 		for blkcnt <= numBlks {
 			c <- zc.GetZBlock(blkcnt)
@@ -46,5 +59,6 @@ func BlockGenerator(zc ZcashClient) chan nativejson.RawMessage {
 		}
 		close(c)
 	}()
+	log.Error("error generating blocks", "error", e)
 	return c
 }

@@ -22,11 +22,12 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/version"
+	"github.com/ava-labs/avalanchego/vms/proposervm/indexer"
 )
 
 const (
@@ -62,6 +63,8 @@ type VM struct {
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
 	verifiedBlocks map[ids.ID]*Block
+
+	hIndexer indexer.HeightIndexer
 
 	as common.AppSender
 
@@ -105,7 +108,7 @@ func (vm *VM) Initialize(
 	vm.state = NewState(vm.dbManager.Current().Database, vm)
 
 	// Initialize genesis
-	if err := vm.initGenesis(genesisData); err != nil {
+	if err := vm.initAndSync(genesisData); err != nil {
 		return err
 	}
 
@@ -193,14 +196,14 @@ func (vm *VM) SetState(state snow.State) error {
 //   index.
 func (vm *VM) VerifyHeightIndex() error {
 	log.Info("verify height index")
-	return block.ErrHeightIndexedVMNotImplemented
+	return nil
 }
 
 // GetBlockIDAtHeight returns the ID of the block that was accepted with
 // [height].
 func (vm *VM) GetBlockIDAtHeight(height uint64) (ids.ID, error) {
 	log.Info("get block id at height", "height", height)
-	return ids.Empty, block.ErrHeightIndexedVMNotImplemented
+	return vm.state.GetBlockIDAtHeight(height)
 }
 
 // onBootstrapStarted marks this VM as bootstrapping
@@ -221,17 +224,19 @@ func (vm *VM) onNormalOperationsStarted() error {
 	return nil
 }
 
-// Initializes Genesis if required
-// only init genesis and not whole chain
-func (vm *VM) initGenesis(genesisData []byte) error {
-	log.Info("initializing from genesis")
+// Sync this node with the zcash daemon
+// If we are initializing, ingest the genesis block from the zcash daemon
+// Otherwise, if our chain is ahead of the zcash daemon's chain, catch up the daemon
+// All other states result in an exception
+func (vm *VM) initAndSync(genesisData []byte) error {
+	log.Info("Entering initAndSync function")
 	stateInitialized, err := vm.state.IsInitialized()
 	if err != nil {
 		return err
 	}
-
 	// if state is already initialized, skip init genesis.
 	if stateInitialized {
+		// vm.preferred.
 		log.Info("already initialized, skipping init genesis")
 		return nil
 	}
@@ -463,4 +468,11 @@ func (vm *VM) AppResponse(nodeID ids.ShortID, requestID uint32, response []byte)
 // This VM doesn't (currently) have any app-specific messages
 func (vm *VM) AppRequestFailed(nodeID ids.ShortID, requestID uint32) error {
 	return nil
+}
+
+func (vm *VM) Commit() error {
+	vm.ctx.Lock.Lock()
+	defer vm.ctx.Lock.Unlock()
+
+	return vm.state.Commit()
 }

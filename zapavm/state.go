@@ -7,7 +7,10 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/prefixdb"
 	"github.com/ava-labs/avalanchego/database/versiondb"
+	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	pstate "github.com/ava-labs/avalanchego/vms/proposervm/state"
+	log "github.com/inconshreveable/log15"
 )
 
 var (
@@ -15,6 +18,7 @@ var (
 	// It's important to set different prefixes for each separate database objects.
 	singletonStatePrefix = []byte("singleton")
 	blockStatePrefix     = []byte("block")
+	heightIndexPrefix    = []byte("height")
 
 	_ State = &state{}
 )
@@ -26,6 +30,7 @@ type State interface {
 	// it is used to understand if db is initialized already.
 	avax.SingletonState
 	BlockState
+	pstate.HeightIndex
 
 	Commit() error
 	Close() error
@@ -34,8 +39,21 @@ type State interface {
 type state struct {
 	avax.SingletonState
 	BlockState
+	pstate.HeightIndex
 
 	baseDB *versiondb.Database
+}
+
+func (s *state) PutBlock(blk *Block) error {
+	log.Info("state.Putblock");
+	pberr := s.BlockState.PutBlock(blk)
+	if pberr != nil {
+		return pberr
+	}
+	if blk.Status() == choices.Accepted {
+		return s.HeightIndex.SetBlockIDAtHeight(blk.Hght, blk.id)
+	}
+	return nil
 }
 
 func NewState(db database.Database, vm *VM) State {
@@ -47,10 +65,13 @@ func NewState(db database.Database, vm *VM) State {
 	// create a prefixed "singletonDB" from baseDB
 	singletonDB := prefixdb.New(singletonStatePrefix, baseDB)
 
+	heightDB := prefixdb.New(heightIndexPrefix, baseDB)
+
 	// return state with created sub state components
 	return &state{
 		BlockState:     NewBlockState(blockDB, vm),
 		SingletonState: avax.NewSingletonState(singletonDB),
+		HeightIndex:    pstate.NewHeightIndex(heightDB, baseDB),
 		baseDB:         baseDB,
 	}
 }
