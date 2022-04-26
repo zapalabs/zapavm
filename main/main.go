@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/hashicorp/go-plugin"
 	log "github.com/inconshreveable/log15"
@@ -19,12 +18,6 @@ import (
 )
 
 func main() {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		os.Exit(1)
-	}
-	logFile := homeDir + "/avalanche-logs/zapamain.log"
-
 	version, err := PrintVersion()
 	if len(os.Args) == 2 {
 		if os.Args[1] == "testBlockSerialization" {
@@ -101,15 +94,8 @@ func main() {
 		fmt.Printf("%s@%s\n", zapavm.Name, zapavm.Version)
 		os.Exit(0)
 	}
-
-	fp, _ := filepath.Abs(logFile)
-	lh, e := log.FileHandler(fp, log.TerminalFormat())
-	if e != nil {
-		fmt.Printf("Couldn't open log file handler %s", e)
-		os.Exit(1)
-	}
-
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, lh))
+	
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat())))
 
 	log.Info("Starting Zapa VM")
 
