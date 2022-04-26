@@ -20,36 +20,36 @@ type ZcashHTTPClient struct {
 }
 
 const (
-	zcashHost  = "127.0.0.1"
-	zcashPort = 8232
-	zcashUser  = "test"
-	zcashPw    = "pw"
+	ZcashHost  = "127.0.0.1"
+	ZcashPort = 8232
+	ZcashUser  = "test"
+	ZcashPw    = "pw"
 )
 
 func (zc *ZcashHTTPClient) GetHost() string {
 	if zc.Host == "" {
-		return zcashHost
+		return ZcashHost
 	}
 	return zc.Host
 }
 
 func (zc *ZcashHTTPClient) GetPort() int {
 	if zc.Port == 0 {
-		return zcashPort
+		return ZcashPort
 	}
 	return zc.Port
 }
 
 func (zc *ZcashHTTPClient) GetUser() string {
 	if zc.User == "" {
-		return zcashUser
+		return ZcashUser
 	}
 	return zc.User
 }
 
 func (zc *ZcashHTTPClient) GetPassword() string {
 	if zc.Password == "" {
-		return zcashPw
+		return ZcashPw
 	}
 	return zc.Password
 }

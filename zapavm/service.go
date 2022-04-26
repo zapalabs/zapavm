@@ -54,6 +54,10 @@ type SuccessReply struct {
 	Success bool
 }
 
+type EnabledReply struct {
+	Enabled bool
+}
+
 func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoolReply) error {
 	log.Info("submitting transaction. calling zcash.zendmany from", "nodeid", s.vm.ctx.NodeID)
 	result := s.vm.zc.SendMany(args.From, args.To, args.Amount)
@@ -84,7 +88,13 @@ func (s *Service) Zcashrpc(_ *http.Request, args *zclient.ZCashRequest, reply *z
 	return nil
 }
 
-// needed to associate with local zcash rpc when multiple are running on same machine
+func (s *Service) IsChainEnabled(_ *http.Request, args *EmptyArgs, reply *EnabledReply) error {
+	log.Info("calling is chain enabld", "nodeid", s.vm.ctx.NodeID)
+	reply.Enabled = s.vm.enabled
+	return nil
+}
+
+// associate with new zcash host and port
 func (s *Service) AssociateZcashHostPort(_ *http.Request, args *ZcashHostInfo, reply *SuccessReply) error {
 	log.Info("calling associate zcash host port", "rpc host", args.Host, "rpc port", args.Port)
 	s.vm.zc.SetHost(args.Host)
@@ -114,6 +124,7 @@ type GetBlockReply struct {
 func (s *Service) GetBlock(_ *http.Request, args *GetBlockArgs, reply *GetBlockReply) error {
 	// If an ID is given, parse its string representation to an ids.ID
 	// If no ID is given, ID becomes the ID of last accepted block
+	log.Info("getting block")
 	var (
 		id  ids.ID
 		err error
