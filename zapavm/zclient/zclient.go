@@ -59,6 +59,8 @@ func BlockGenerator(zc ZcashClient) chan ZcashBlockResult {
 		}
 		close(c)
 	}()
-	log.Error("error generating blocks", "error", e)
+	if e != nil {
+		log.Error("error generating blocks", "error", e)
+	}
 	return c
 }

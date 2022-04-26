@@ -48,9 +48,12 @@ func (b *Block) Verify() error {
 	if b.ZBlock() != nil {
 		err := b.vm.zc.ValidateBlock(b.ZBlock()) 
 		if err != nil {
+			log.Warn("Validate block returned with an error", "error", err)
 			return err
 		}
 	}
+
+	log.Info("Successfully validated block")
 	b.vm.verifiedBlocks[b.ID()] = b
 
 	return nil

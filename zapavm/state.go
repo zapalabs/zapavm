@@ -60,12 +60,18 @@ func NewState(db database.Database, vm *VM) State {
 	// create a new baseDB
 	baseDB := versiondb.New(db)
 
-	// create a prefixed "blockDB" from baseDB
-	blockDB := prefixdb.New(blockStatePrefix, baseDB)
-	// create a prefixed "singletonDB" from baseDB
-	singletonDB := prefixdb.New(singletonStatePrefix, baseDB)
+	chainPrefix := vm.ctx.ChainID.String()
 
-	heightDB := prefixdb.New(heightIndexPrefix, baseDB)
+	// create a prefixed "blockDB" from baseDB
+	blockDBPref := chainPrefix + "-" + string(blockStatePrefix)
+	singletonDBPref := chainPrefix + "-" + string(singletonStatePrefix)
+	heightDBPref := chainPrefix + "-" + string(heightIndexPrefix)
+
+
+	blockDB := prefixdb.New([]byte(blockDBPref), baseDB)
+	singletonDB := prefixdb.New([]byte(singletonDBPref), baseDB)
+
+	heightDB := prefixdb.New([]byte(heightDBPref), baseDB)
 
 	// return state with created sub state components
 	return &state{
