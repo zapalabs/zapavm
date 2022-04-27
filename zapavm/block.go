@@ -31,10 +31,11 @@ var (
 // 2) Height
 // 3) ZBlk -- the serialized zcash block
 type Block struct {
-	PrntID ids.ID                `serialize:"true" json:"parentID"`  // parent's ID
-	Hght   uint64                `serialize:"true" json:"height"`    // This block's height. The genesis block is at height 0.
-	ZBlk   nativejson.RawMessage `serialize:"true" json:"zblock"`    // zcash block
+	PrntID ids.ID                   `serialize:"true" json:"parentID"`  // parent's ID
+	Hght   uint64                   `serialize:"true" json:"height"`    // This block's height. The genesis block is at height 0.
+	ZBlk   nativejson.RawMessage    `serialize:"true" json:"zblock"`    // zcash block
 	CreationTime int64              `serialize:"true" json:"creationTime"`
+	ProducingNode string            `serialize:"true" json:"producingNode"`
 
 	id     ids.ID         // hold this block's ID
 	bytes  []byte         // this block's encoded bytes

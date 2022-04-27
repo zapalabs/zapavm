@@ -34,6 +34,11 @@ type SubmitTxArgs struct {
 	Amount float32 `json:"amount"`
 }
 
+type NodeBlockCountRequest struct {
+	FromHeight *int `json:"fromHeight,omitempty"` // inclusive
+	ToHeight   *int `json:"toHeight,omitempty"` // exclusive
+}
+
 type EmptyArgs struct {
 }
 
@@ -56,6 +61,10 @@ type SuccessReply struct {
 
 type EnabledReply struct {
 	Enabled bool
+}
+
+type NodeBlockCountReply struct {
+	nodeBlockCounts map[string]int 
 }
 
 func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoolReply) error {
@@ -100,6 +109,14 @@ func (s *Service) AssociateZcashHostPort(_ *http.Request, args *ZcashHostInfo, r
 	s.vm.zc.SetHost(args.Host)
 	s.vm.zc.SetPort(args.Port)
 	reply.Success = true
+	return nil
+}
+
+func (s *Service) NodeBlockCounts(_ *http.Request, args *NodeBlockCountRequest, reply *NodeBlockCountReply) error {
+	reply.nodeBlockCounts = make(map[string]int)
+	for blk := range s.vm.BlockGenerator(args.FromHeight, args.ToHeight) {
+		reply.nodeBlockCounts[blk.ProducingNode] = 1
+	}
 	return nil
 }
 

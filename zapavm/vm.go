@@ -127,11 +127,18 @@ func (vm *VM) Initialize(
 	vm.state = NewState(vm.dbManager.Current().Database, vm)
 
 	log.Info("calling init and sync")
-	return vm.initAndSync()
+	res := vm.initAndSync()
+	if res != nil {
+		log.Error("Error during initialization", "error", res)
+	} else {
+		log.Info("successfully completed initialization")
+	}
+	return res
 }
 
 // SetState sets this VM state according to given snow.State
 func (vm *VM) SetState(state snow.State) error {
+	log.Info("Setting state", "state", state)
 	switch state {
 	// Engine reports it's bootstrapping
 	case snow.Bootstrapping:
@@ -162,12 +169,12 @@ func (vm *VM) GetBlockIDAtHeight(height uint64) (ids.ID, error) {
 	return vm.state.GetBlockIDAtHeight(height)
 }
 
-func (vm *VM) GetBlockAtHeight (height uint64) (snowman.Block, error) {
+func (vm *VM) GetBlockAtHeight (height uint64) (*Block, error) {
 	blockId, e := vm.GetBlockIDAtHeight(height)
 	if e != nil {
 		return &Block{}, fmt.Errorf("error getting block at height %d : %e", height, e)
 	}
-	return vm.GetBlock(blockId)
+	return vm.state.GetBlock(blockId)
 }
 
 // CreateHandlers returns a map where:
@@ -301,7 +308,10 @@ func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMess
 		PrntID: parentID,
 		Hght:   height,
 		ZBlk:   zblock,
-		CreationTime: timestamp,
+	}
+
+	if height > 0 {
+		block.ProducingNode = vm.ctx.NodeID.String()
 	}
 
 	// Get the byte representation of the block
@@ -450,13 +460,9 @@ func (vm *VM) initAndSync() error {
 		for preferredHeight > zcBlkCount {
 			zcBlkCount += 1
 			log.Info("Syncing block with zcash", "block number", zcBlkCount)
-			snoblk, e := vm.GetBlockAtHeight(uint64(zcBlkCount))
+			blk, e := vm.GetBlockAtHeight(uint64(zcBlkCount))
 			if e != nil {
 				return e
-			}
-			blk, ok := snoblk.(*Block)
-			if !ok {
-				return fmt.Errorf("Failed to cast snowman block to Block")
 			}
 			e = vm.zc.SubmitBlock(blk.ZBlock())
 			if e != nil {
@@ -495,6 +501,52 @@ func (vm *VM) initAndSync() error {
 
 	log.Info("finished initialization, committing initialized state")
 	return vm.state.Commit()
+}
+
+// min is inclusive, max is exclusive
+func (vm *VM) BlockGenerator(min *int, max *int) chan Block {
+	c := make(chan Block)
+	start := 0
+	if min != nil {
+		start = *min
+	}
+	
+	go func() {
+		defer close(c)
+		var lastBlock *Block
+		var err error
+		lastBlock, err = vm.state.GetLastAcceptedBlock()
+		if err != nil {
+			log.Error("Error getting last accepted block", "error", err)
+			return
+		}
+		if max != nil && *max < int(lastBlock.Height()) {
+			lastBlock, err = vm.GetBlockAtHeight(uint64(*max))
+			if err != nil {
+				log.Error("Error getting block at height", "height", max, "error", err)
+				return
+			}
+		}
+		if start > int(lastBlock.Height()) {
+			log.Error("Requesting all blocks above height that chain hasn't reached")
+			return
+		}
+		var currBlock *Block
+		height := start
+		for currBlock == nil || !(currBlock.ID().String() == lastBlock.ID().String()) {
+			
+			currBlock, err = vm.GetBlockAtHeight(uint64(height))
+			if err != nil {
+				log.Error("Error retrieving block at height", "error", err)
+				return
+			}
+			c <- *currBlock
+			height++
+			log.Info("printing ids", "currblock id", currBlock.ID(), "last block id", lastBlock.ID(), "!equal?", !(currBlock.ID().String() == lastBlock.ID().String()), "currBlock nil?", currBlock == nil, "whole thing", currBlock == nil || !(currBlock.ID().String() == lastBlock.ID().String()))
+		}
+	}()
+
+	return c
 }
 
 func (vm *VM) isEnabled(c ChainConfig) bool {
