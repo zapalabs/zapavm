@@ -308,6 +308,7 @@ func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMess
 		PrntID: parentID,
 		Hght:   height,
 		ZBlk:   zblock,
+		CreationTime: timestamp,
 	}
 
 	if height > 0 {
@@ -534,7 +535,6 @@ func (vm *VM) BlockGenerator(min *int, max *int) chan Block {
 		var currBlock *Block
 		height := start
 		for currBlock == nil || !(currBlock.ID().String() == lastBlock.ID().String()) {
-			
 			currBlock, err = vm.GetBlockAtHeight(uint64(height))
 			if err != nil {
 				log.Error("Error retrieving block at height", "error", err)

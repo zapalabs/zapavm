@@ -64,7 +64,7 @@ type EnabledReply struct {
 }
 
 type NodeBlockCountReply struct {
-	nodeBlockCounts map[string]int 
+	NodeBlockCounts map[string]int 
 }
 
 func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoolReply) error {
@@ -113,9 +113,11 @@ func (s *Service) AssociateZcashHostPort(_ *http.Request, args *ZcashHostInfo, r
 }
 
 func (s *Service) NodeBlockCounts(_ *http.Request, args *NodeBlockCountRequest, reply *NodeBlockCountReply) error {
-	reply.nodeBlockCounts = make(map[string]int)
+	reply.NodeBlockCounts = make(map[string]int)
 	for blk := range s.vm.BlockGenerator(args.FromHeight, args.ToHeight) {
-		reply.nodeBlockCounts[blk.ProducingNode] = 1
+		if blk.ProducingNode != "" {		
+			reply.NodeBlockCounts[blk.ProducingNode]++
+		}
 	}
 	return nil
 }
