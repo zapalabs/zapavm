@@ -62,6 +62,8 @@ func (b *Block) Verify() error {
 			log.Error(err)
 			return fmt.Errorf(err)
 		}
+	} else {
+		log.Info("don't know about this block yet")
 	}
 	if b.ZBlock() != nil {
 		err := b.vm.zc.ValidateBlock(b.ZBlock()) 
