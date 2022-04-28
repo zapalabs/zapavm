@@ -484,6 +484,9 @@ func (vm *VM) initAndSync() error {
 		var height uint64 = 0
 		parentid := ids.Empty
 		for blk := range zclient.BlockGenerator(vm.zc) {
+			if height == 1 {
+				return fmt.Errorf("Initializing zapavm with zcash which has more than genesis block. This is unacceptable!")
+			}
 			if blk.Error != nil {
 				return fmt.Errorf("Error when retrieving block from zcash %e", blk.Error)
 			}
