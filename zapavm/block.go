@@ -5,6 +5,7 @@ package zapavm
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	nativejson "encoding/json"
@@ -46,6 +47,22 @@ type Block struct {
 // Verify returns nil iff this block is valid.
 func (b *Block) Verify() error {
 	log.Info("Calling verify block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
+	blk, e := b.vm.GetBlock(b.id)
+	if e == nil {
+		block, ok := blk.(*Block)
+		if !ok {
+			return fmt.Errorf("couldn't correctly cast block")
+		}
+		if block.Status() == choices.Accepted {
+			log.Info("already know about this block and it is accepted")
+			return nil
+		}
+		if block.Status() == choices.Rejected {
+			err := "already know about this block and it is rejeected"
+			log.Error(err)
+			return fmt.Errorf(err)
+		}
+	}
 	if b.ZBlock() != nil {
 		err := b.vm.zc.ValidateBlock(b.ZBlock()) 
 		if err != nil {
