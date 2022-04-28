@@ -47,6 +47,13 @@ type Block struct {
 // Verify returns nil iff this block is valid.
 func (b *Block) Verify() error {
 	log.Info("Calling verify block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
+	log.Info("block info",  "status", b.status, "creation time", b.CreationTime)
+	blkAtHeight, e := b.vm.GetBlockAtHeight(b.Height())
+	if e == nil {
+		log.Info("block at height info", "id", blkAtHeight.ID(), "status", blkAtHeight.status, "creation time", b.CreationTime)
+	} else {
+		log.Error("Error retrieving block at height", "height", b.Height())
+	}
 	blk, e := b.vm.GetBlock(b.id)
 	if e == nil {
 		block, ok := blk.(*Block)
