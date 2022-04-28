@@ -22,6 +22,7 @@ type ChainConfig struct {
     ZcashPort int `json:"zcashPort"`
 	ZcashUser string `json:"zcashUser"`
 	ZcashPassword string `json:"zcashPassword"`
+	ClearDatabase bool `json:"clearDatabase"`
 }
 
 func NewChainConfig(conf []byte) ChainConfig {

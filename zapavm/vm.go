@@ -126,6 +126,14 @@ func (vm *VM) Initialize(
 	// Create new state
 	vm.state = NewState(vm.dbManager.Current().Database, vm)
 
+	if conf.ClearDatabase {
+		log.Info("clearing database")
+		err := vm.state.ClearState()
+		if err != nil {
+			return err
+		}
+	}
+
 	log.Info("calling init and sync")
 	res := vm.initAndSync()
 	if res != nil {

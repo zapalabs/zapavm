@@ -4,6 +4,7 @@
 package zapavm
 
 import (
+	"github.com/ava-labs/avalanchego/chains/atomic"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/prefixdb"
 	"github.com/ava-labs/avalanchego/database/versiondb"
@@ -34,6 +35,7 @@ type State interface {
 
 	Commit() error
 	Close() error
+	ClearState() error
 }
 
 type state struct {
@@ -55,6 +57,35 @@ func (s *state) PutBlock(blk *Block) error {
 	}
 	return nil
 }
+
+func DeleteDb(db database.Database) error {
+	dataBatch := db.NewBatch()
+	var err error
+	it := db.NewIterator()
+	defer it.Release()
+	deletedItems := 0
+
+	for it.Next() {
+		if err = dataBatch.Delete(it.Key()); err != nil {
+			log.Error("Error deleting key", "key", it.Key(), "error", err)
+			return err
+		}
+		log.Info("deleted key", "key", it.Key())
+		deletedItems += 1
+	}
+
+	if err = it.Error(); err != nil {
+		return err
+	}
+
+	if err := atomic.WriteAll(dataBatch); err != nil {
+		log.Error("Error applying batch", "error", err)
+		return err
+	}
+	log.Info("Successfully deleted", "num keys", deletedItems)
+	return nil
+}
+
 
 func NewState(db database.Database, vm *VM) State {
 	// create a new baseDB
@@ -90,4 +121,9 @@ func (s *state) Commit() error {
 // Close closes the underlying base database
 func (s *state) Close() error {
 	return s.baseDB.Close()
+}
+
+func (s *state) ClearState() error {
+	log.Info("clearing state...")
+	return DeleteDb(s.baseDB)
 }

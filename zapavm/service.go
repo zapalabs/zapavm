@@ -5,6 +5,7 @@ package zapavm
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -39,6 +40,10 @@ type NodeBlockCountRequest struct {
 	ToHeight   *int `json:"toHeight,omitempty"` // exclusive
 }
 
+type GetBlockRequest struct {
+	Height int `json:"height"`
+}
+
 type EmptyArgs struct {
 }
 
@@ -66,6 +71,7 @@ type EnabledReply struct {
 type NodeBlockCountReply struct {
 	NodeBlockCounts map[string]int 
 }
+
 
 func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoolReply) error {
 	log.Info("submitting transaction. calling zcash.zendmany from", "nodeid", s.vm.ctx.NodeID)
@@ -128,6 +134,8 @@ type GetBlockArgs struct {
 	// ID of the block we're getting.
 	// If left blank, gets the latest block
 	ID *ids.ID `json:"id"`
+
+	Height *int `json:"height"`
 }
 
 // GetBlockReply is the reply from GetBlock
@@ -136,6 +144,7 @@ type GetBlockReply struct {
 	Data      string      `json:"data"`      // Data in the most recent block. Base 58 repr. of 5 bytes.
 	ID        ids.ID      `json:"id"`        // String repr. of ID of the most recent block
 	ParentID  ids.ID      `json:"parentID"`  // String repr. of ID of the most recent block's parent
+	ProducingNode string `json:"producingNode"`
 }
 
 // GetBlock gets the block whose ID is [args.ID]
@@ -147,27 +156,32 @@ func (s *Service) GetBlock(_ *http.Request, args *GetBlockArgs, reply *GetBlockR
 	var (
 		id  ids.ID
 		err error
+		block *Block
 	)
 
+
 	if args.ID == nil {
-		id, err = s.vm.state.GetLastAccepted()
-		if err != nil {
-			return errCannotGetLastAccepted
+		if args.Height == nil {
+			return fmt.Errorf("must specify either height or id")
 		}
+		block, err = s.vm.GetBlockAtHeight(uint64(*args.Height))
 	} else {
 		id = *args.ID
+		block, err = s.vm.getBlock(id)
 	}
 
 	// Get the block from the database
-	block, err := s.vm.getBlock(id)
+	
 	if err != nil {
-		return errNoSuchBlock
+		return fmt.Errorf("Error retrieving block %e", err)
 	}
 
 	// Fill out the response with the block's data
 	reply.ID = block.ID()
 	reply.Timestamp = json.Uint64(block.Timestamp().Unix())
 	reply.ParentID = block.Parent()
+	reply.ProducingNode = block.ProducingNode
+	reply.Data = string(block.Bytes())
 
 	return err
 }
