@@ -231,6 +231,7 @@ func (vm *VM) HealthCheck() (interface{}, error) { return nil, nil }
 
 // BuildBlock returns a block that this vm wants to add to consensus
 func (vm *VM) BuildBlock() (snowman.Block, error) {
+	log.Info("Buildina nd proposing block for consensus")
 	suggestResult := vm.zc.SuggestBlock()
 	if suggestResult.Error != nil {
 		return nil, fmt.Errorf("Error suggesting block %e", suggestResult.Error)
