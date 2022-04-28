@@ -132,7 +132,7 @@ func (zc *ZcashHTTPClient) ValidateBlock(zblk nativejson.RawMessage) error {
 	}
 	s := string(r.Result[:])
 	if s != "null" {
-		log.Error("validate block returned error")
+		log.Error("validate block returned error", "s", s)
 		return fmt.Errorf("error validating block")
 	}
 	return nil
