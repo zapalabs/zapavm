@@ -44,6 +44,7 @@ var (
 	// be removed from this list via config.
 	DisabledChains = map[string]bool{
 		"HydwMTPrYBWHrGVmWfG8k4Po2eTPEqe7y7Z4jZaUr2Me6rin7": true,
+		"2LedqoeDb3zZQSqPBczemzrofepr6SzSHXxHXANrfzeFKGGNVd": true,
 	}
 )
 
