@@ -435,7 +435,7 @@ func (vm *VM) onNormalOperationsStarted() error {
 // All other states result in an exception
 func (vm *VM) initAndSync() error {
 	log.Info("Entering initAndSync function")
-
+	time.Sleep(8 * time.Second)
 	stateInitialized, err := vm.state.IsInitialized()
 	if err != nil {
 		return err
@@ -481,9 +481,13 @@ func (vm *VM) initAndSync() error {
 	} else {
 		// Initialize
 		log.Info("Initializing zapavm by ingesting existing zcash blocks")
+		time.Sleep(8 * time.Second)
+
 		var height uint64 = 0
 		parentid := ids.Empty
 		for blk := range zclient.BlockGenerator(vm.zc) {
+			time.Sleep(8 * time.Second)
+
 			if height == 1 {
 				return fmt.Errorf("Initializing zapavm with zcash which has more than genesis block. This is unacceptable!")
 			}
