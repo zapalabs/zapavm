@@ -9,7 +9,6 @@ import (
 	"os/exec"
 
 	"github.com/hashicorp/go-plugin"
-	// log "github.com/inconshreveable/log15"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
