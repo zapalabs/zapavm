@@ -93,10 +93,6 @@ func main() {
 		fmt.Printf("%s@%s\n", zapavm.Name, zapavm.Version)
 		os.Exit(0)
 	}
-	
-	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat())))
-
-	// log.Info("Starting Zapa VM")
 
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: rpcchainvm.Handshake,
