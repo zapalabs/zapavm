@@ -85,7 +85,7 @@ func (zc *ZcashHTTPClient) GetBlockCount() (int, error) {
 	if blkcnt.Error == nil {
 		return r, e
 	}
-	return r, blkcnt.Error
+	return r, blkcnt.Error.Error()
 }
 
 func (zc *ZcashHTTPClient) GetZBlock(height int) ZcashBlockResult {
@@ -101,7 +101,7 @@ func (zc *ZcashHTTPClient) CallZcashJson(method string, params []interface{}) ZC
 	if err != nil {
 		errstr := "Error marshalling request to json"
 		log.Error(errstr, "error", err)
-		return ZCashResponse{Error: fmt.Errorf(errstr)}
+		return ZCashResponse{Error: &ZcashError{Message: errstr, Code: ZcashClientErrorCode}}
 	}
 	return zc.getZcashResponse(b)
 }
@@ -110,7 +110,7 @@ func (zc *ZcashHTTPClient) ValidateBlock(zblk nativejson.RawMessage) error {
 	r := zc.CallZcash("validateBlock", zblk)
 	if r.Error != nil {
 		log.Error("validate block call did not succeed", "error", r.Error)
-		return r.Error
+		return r.Error.Error()
 	}
 	s := string(r.Result[:])
 	if s != "null" {
@@ -123,7 +123,7 @@ func (zc *ZcashHTTPClient) ValidateBlock(zblk nativejson.RawMessage) error {
 func (zc *ZcashHTTPClient) SubmitBlock(zblk nativejson.RawMessage) error {
 	resp := zc.CallZcash("submitblock", zblk)
 	if resp.Error != nil {
-		return fmt.Errorf("error submitting block %s", resp.Error)
+		return resp.Error.Error()
 	}
 	return nil
 }
@@ -149,8 +149,9 @@ func (zc *ZcashHTTPClient) CallZcash(method string, zresult nativejson.RawMessag
 
 	b, err := nativejson.Marshal(req)
 	if err != nil {
-		log.Error("Error marshalling request", "error", err)
-		return ZCashResponse{Error: err}
+		errorstr := fmt.Sprintf("Error marshalling request: %e", err)
+		log.Error(errorstr)
+		return ZCashResponse{Error: &ZcashError{Message: errorstr, Code: ZcashClientErrorCode}}
 	}
 
 	return zc.getZcashResponse(b)
@@ -182,22 +183,25 @@ func (zc *ZcashHTTPClient) getZcashResponse(b []byte) ZCashResponse {
 	resp, err := http.Post(completeHost, "application/json", serializedData)
 	
 	if err != nil {
-		log.Error("Error getting zcash response", "Complete Host", completeHost, "error", err)
-		return ZCashResponse{Error: err}
+		errorstr := fmt.Sprintf("Error getting zcash response. Complete Host: %s ; error: %e", completeHost, err)
+		log.Error(errorstr)
+		return ZCashResponse{Error: &ZcashError{Message: errorstr, Code: ZcashClientErrorCode}}
 	}
 	
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Error("Error reading zcash response", "Complete Host", completeHost,  "error", err)
-		return ZCashResponse{Error: err}
+		errorstr := fmt.Sprintf("Error reading zcash response. Complete Host: %s ; error: %e", completeHost, err)
+		log.Error(errorstr)
+		return ZCashResponse{Error: &ZcashError{Message: errorstr, Code: ZcashClientErrorCode}}
 	}
 	
 	zresp := ZCashResponse{}
 	nativejson.Unmarshal([]byte(body), &zresp)
 	if err != nil {
-		log.Error("Error unmarshalling zcash response", "Complete Host", completeHost, "error", err)
-		return ZCashResponse{Error: err}
+		errorstr := fmt.Sprintf("Error unmarshalling zcash response. Complete Host: %s ; error: %e", completeHost, err)
+		log.Error(errorstr)
+		return ZCashResponse{Error: &ZcashError{Message: errorstr, Code: ZcashClientErrorCode}}
 	}
 
 	log.Debug("ZcashHttpClient.getZcashResponse: returning", "ZcashResponse", zresp)

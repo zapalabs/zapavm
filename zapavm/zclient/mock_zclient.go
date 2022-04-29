@@ -2,7 +2,6 @@ package zclient
 
 import (
 	nativejson "encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -36,9 +35,8 @@ func (zc *ZCashMockClient) SendMany(from string, to string, amount float32) ZCas
 	errString := "Calling send many with mock client. This is a no-op."
 	log.Warn(errString, "from", from, "to", to, "amount", amount)
 
-	return ZCashResponse{
-		Error: fmt.Errorf(errString),
-	}
+	return ZCashResponse{Error: &ZcashError{Message: errString, Code: ZcashClientErrorCode}}
+
 }
 
 func (zc *ZCashMockClient) GetBlockCount() (int, error) {
@@ -76,16 +74,13 @@ func (zc *ZCashMockClient) CallZcash(method string, zresult nativejson.RawMessag
 	errString := "ZCMockClient.CallZcash with mock client. This is a no-op."
 	log.Warn(errString)
 
-	return ZCashResponse{
-		Error: fmt.Errorf(errString),
-	}
+	return ZCashResponse{Error: &ZcashError{Message: errString, Code: ZcashClientErrorCode}}
 }
 
 func (zc *ZCashMockClient) CallZcashJson(method string, params []interface{}) ZCashResponse {
 	errString := "Calling CallZcashJson with mock client. This is a no-op."
 	log.Warn(errString)
 
-	return ZCashResponse{
-		Error: fmt.Errorf(errString),
-	}
+	return ZCashResponse{Error: &ZcashError{Message: errString, Code: ZcashClientErrorCode}}
+
 }

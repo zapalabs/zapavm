@@ -101,12 +101,14 @@ func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoo
 	log.Debug("SubmitTx: begin", "from", args.From, "to", args.To, "amount", args.Amount)
 	result := s.vm.zc.SendMany(args.From, args.To, args.Amount)
 	if result.Error != nil {
+		return result.Error.Error()
+	} else {
+		s.vm.as.SendAppGossip(result.Result)
 		s.vm.NotifyBlockReady()
 		reply.SubmittedTx = result.Result
-		s.vm.as.SendAppGossip(result.Result)
 		reply.Mempool = nil
 	}
-	return result.Error
+	return nil
 }
 
 func (s *Service) GetBlockCount(_ *http.Request, args *EmptyArgs, reply *BlockCountReply) error {
@@ -136,7 +138,10 @@ func (s *Service) Zcashrpc(_ *http.Request, args *zclient.ZCashRequest, reply *z
 	reply.Result = result.Result
 	reply.ID = result.ID
 	reply.Error = result.Error
-	return reply.Error
+	if reply.Error != nil {
+		return reply.Error.Error()
+	}
+	return nil
 }
 
 func (s *Service) IsChainEnabled(_ *http.Request, args *EmptyArgs, reply *EnabledReply) error {

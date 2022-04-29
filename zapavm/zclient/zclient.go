@@ -2,13 +2,21 @@ package zclient
 
 import (
 	nativejson "encoding/json"
+	"fmt"
 
 	log "github.com/inconshreveable/log15"
 )
 
+const ZcashClientErrorCode = 100
+
+type ZcashError struct {
+	Code int  `json:"code"`
+	Message string `json:"message"`
+}
+
 type ZCashResponse struct {
 	Result nativejson.RawMessage `json:"result"`
-	Error  error                 `json:"error"`
+	Error  *ZcashError                 `json:"error"`
 	ID     string                `json:"id"`
 }
 
@@ -63,4 +71,8 @@ func BlockGenerator(zc ZcashClient) chan ZcashBlockResult {
 		log.Error("error generating blocks", "error", e)
 	}
 	return c
+}
+
+func (zc *ZcashError) Error() error {
+	return fmt.Errorf("Message: %s ; Code: %d", zc.Message, zc.Code)
 }
