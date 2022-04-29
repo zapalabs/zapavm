@@ -6,7 +6,6 @@ package zapavm
 import (
 	"errors"
 	"fmt"
-	// "fmt"
 	"time"
 
 	nativejson "encoding/json"
