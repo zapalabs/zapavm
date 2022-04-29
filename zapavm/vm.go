@@ -5,6 +5,7 @@ package zapavm
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/gorilla/rpc/v2"
@@ -47,6 +48,16 @@ var (
 		"2LedqoeDb3zZQSqPBczemzrofepr6SzSHXxHXANrfzeFKGGNVd": true,
 	}
 )
+
+var originalStderr *os.File
+
+func init() {
+	// Preserve [os.Stderr] prior to the call in plugin/main.go to plugin.Serve(...).
+	// Preserving the log level allows us to update the root handler while writing to the original
+	// [os.Stderr] that is being piped through to the logger via the rpcchainvm.
+	originalStderr = os.Stderr
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlDebug, log.StreamHandler(originalStderr, log.TerminalFormat())))
+}
 
 // VM implements the snowman.VM interface
 // Each block in this chain contains a Unix timestamp
@@ -102,15 +113,21 @@ func (vm *VM) Initialize(
 	if err != nil {
 		log.Error("error initializing Zapa VM: %v", err)
 		return err
-	}
-	log.Info("Initializing zapa VM", "Version", version, "nodeid", ctx.NodeID, "config", configData)
-	
+	}	
 	vm.dbManager = dbManager
 	vm.ctx = ctx
 	vm.toEngine = toEngine
 	vm.verifiedBlocks = make(map[ids.ID]*Block)
 	vm.as = as
 	conf := NewChainConfig(configData)
+
+	logLevel, err := log.LvlFromString(conf.LogLevel)
+	if err != nil {
+		return fmt.Errorf("failed to initialize logger due to: %w ", err)
+	}
+	vm.setLogLevel(logLevel)
+
+	log.Info("Initializing zapa VM", "Version", version, "nodeid", ctx.NodeID, "config", conf)
 
 	vm.enabled = vm.isEnabled(conf)
 
@@ -121,26 +138,26 @@ func (vm *VM) Initialize(
 	vm.zc, err = conf.ZcashClient(vm.ctx.NodeID.String())
 
 	if err != nil {
-		return fmt.Errorf("Error  zcash client: %e", err)
+		return fmt.Errorf("Error initializing zcash client: %e", err)
 	}
 
 	// Create new state
 	vm.state = NewState(vm.dbManager.Current().Database, vm)
 
 	if conf.ClearDatabase {
-		log.Info("clearing database")
+		log.Info("Clearing database before initializing...")
 		err := vm.state.ClearState()
 		if err != nil {
 			return err
 		}
+	} else {
+		log.Debug("Not clearing database before initializing, picking up where we left off...")
 	}
-
-	log.Info("calling init and sync")
 	res := vm.initAndSync()
 	if res != nil {
 		log.Error("Error during initialization", "error", res)
 	} else {
-		log.Info("successfully completed initialization")
+		log.Info("Successfully completed initialization of zapavm")
 	}
 	return res
 }
@@ -160,6 +177,40 @@ func (vm *VM) SetState(state snow.State) error {
 	}
 }
 
+// setLogLevel initializes logger and sets the log level with the original [os.StdErr] interface
+// along with the context logger.
+func (vm *VM) setLogLevel(logLevel log.Lvl) {
+	prefix, err := vm.ctx.BCLookup.PrimaryAlias(vm.ctx.ChainID)
+	if err != nil {
+		prefix = vm.ctx.ChainID.String()
+	}
+	prefix = fmt.Sprintf("<%s Chain>", prefix)
+	format := SubnetEVMFormat(prefix)
+	log.Root().SetHandler(log.LvlFilterHandler(logLevel, log.MultiHandler(
+		log.StreamHandler(originalStderr, format),
+		log.StreamHandler(vm.ctx.Log, format),
+	)))
+}
+
+func SubnetEVMFormat(prefix string) log.Format {
+	return log.FormatFunc(func(r *log.Record) []byte {
+		location := fmt.Sprintf("%+v", r.Call)
+		newMsg := fmt.Sprintf("%s %s: %s", prefix, location, r.Msg)
+		// need to deep copy since we're using a multihandler
+		// as a result it will alter R.msg twice.
+		newRecord := log.Record{
+			Time:     r.Time,
+			Lvl:      r.Lvl,
+			Msg:      newMsg,
+			Ctx:      r.Ctx,
+			Call:     r.Call,
+			KeyNames: r.KeyNames,
+		}
+		b := log.TerminalFormat().Format(&newRecord)
+		return b
+	})
+}
+
 // VerifyHeightIndex should return:
 // - nil if the height index is available.
 // - ErrHeightIndexedVMNotImplemented if the height index is not supported.
@@ -167,7 +218,7 @@ func (vm *VM) SetState(state snow.State) error {
 // - Any other non-standard error that may have occurred when verifying the
 //   index.
 func (vm *VM) VerifyHeightIndex() error {
-	log.Info("verify height index")
+	log.Debug("VerifyHeightIndex invoked")
 	return nil
 }
 
@@ -231,7 +282,7 @@ func (vm *VM) HealthCheck() (interface{}, error) { return nil, nil }
 
 // BuildBlock returns a block that this vm wants to add to consensus
 func (vm *VM) BuildBlock() (snowman.Block, error) {
-	log.Info("Buildina nd proposing block for consensus")
+	log.Info("vm.BuildBlock: begin. Building and proposing block for consensus")
 	suggestResult := vm.zc.SuggestBlock()
 	if suggestResult.Error != nil {
 		return nil, fmt.Errorf("Error suggesting block %e", suggestResult.Error)
@@ -282,18 +333,28 @@ func (vm *VM) getBlock(blkID ids.ID) (*Block, error) {
 // LastAccepted returns the block most recently accepted
 func (vm *VM) LastAccepted() (ids.ID, error) { return vm.state.GetLastAccepted() }
 
+// LastAccepted returns the block most recently accepted
+func (vm *VM) LastAcceptedBlock() (*Block, error) { 
+	id, err := vm.LastAccepted()
+	if err != nil {
+		return nil, fmt.Errorf("Error getting last accepted block id %e", err)
+	}
+	return vm.getBlock(id)
+}
+
 // ParseBlock parses [bytes] to a Block
 // This function is used by the vm's state to unmarshal blocks saved in state
 // and by the consensus layer when it receives the byte representation of a block
 // from another node
 func (vm *VM) ParseBlock(bytes []byte) (snowman.Block, error) {
+	log.Debug("ParseBlock: begin")
 	// A new empty block
 	block := &Block{}
 
 	// Unmarshal the byte repr. of the block into our empty block
 	_, err := Codec.Unmarshal(bytes, block)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error unmarshalling block: %e", err)
 	}
 
 	// Initialize the block
@@ -302,9 +363,11 @@ func (vm *VM) ParseBlock(bytes []byte) (snowman.Block, error) {
 	if blk, err := vm.getBlock(block.ID()); err == nil {
 		// If we have seen this block before, return it with the most up-to-date
 		// info
+		log.Debug("ParseBlock: return. We have seen this block", blk.LogInfo()...)
 		return blk, nil
 	}
 
+	log.Debug("ParseBlock: return. Returning block", block.LogInfo()...)
 	// Return the block
 	return block, nil
 }
@@ -314,6 +377,7 @@ func (vm *VM) ParseBlock(bytes []byte) (snowman.Block, error) {
 // - the block's data is [data]
 // - the block's timestamp is [timestamp]
 func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMessage, timestamp int64) (*Block, error) {
+	log.Debug("NewBlock: begin")
 	block := &Block{
 		PrntID: parentID,
 		Hght:   height,
@@ -328,40 +392,32 @@ func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMess
 	// Get the byte representation of the block
 	blockBytes, err := Codec.Marshal(CodecVersion, block)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error marshalling block bytes %e", err)
 	}
 
 	// Initialize the block by providing it with its byte representation
 	// and a reference to this VM
 	block.Initialize(blockBytes, choices.Processing, vm)
+	log.Debug("NewBlock: return. Returning block", block.LogInfo()...)
 	return block, nil
 }
 
 // Shutdown this vm
 func (vm *VM) Shutdown() error {
+	log.Debug("Shutdown: begin")
 	if vm.state == nil {
 		return nil
 	}
 
+	log.Debug("Shutdown: calling vm.state.close()")
 	return vm.state.Close() // close versionDB
 }
 
 // SetPreference sets the block with ID [ID] as the preferred block
 func (vm *VM) SetPreference(id ids.ID) error {
+	log.Debug("SetPreference: begin", "id", id)
 	vm.preferred = id
 	return nil
-}
-
-// Bootstrapped marks this VM as bootstrapped
-func (vm *VM) Bootstrapped() error { 
-	log.Info("node finished bootstrapping", "node id", vm.ctx.NodeID)
-	return nil 
-}
-
-// Bootstrapping marks this VM as bootstrapping
-func (vm *VM) Bootstrapping() error { 
-	log.Info("node is bootstrapping", "node id", vm.ctx.NodeID)
-	return nil 
 }
 
 // Returns this VM's version
@@ -371,20 +427,21 @@ func (vm *VM) Version() (string, error) {
 
 func (vm *VM) Connected(id ids.ShortID, v version.Application) error {
 	log.Debug("Connected to node id", "node id", id, "app version", v.String())
-	return nil // noop
+	return nil
 }
 
 func (vm *VM) Disconnected(id ids.ShortID) error {
-	return nil // noop
+	log.Debug("Disconnected from node id", "node id", id)
+	return nil 
 }
 
 // Receive transaction
 func (vm *VM) AppGossip(nodeID ids.ShortID, msg []byte) error {
-	// receive gossip, add to mempool
-	log.Info("receiving app gossip", "fromnodeid", nodeID, "receivingnodeid", vm.ctx.NodeID)
+	log.Debug("Receiving app gossip", "fromNodeID", nodeID, "receivingNodeID", vm.ctx.NodeID)
 	if msg != nil {
-		log.Info("calling zcash receive tx", "fromnodeid", nodeID, "receivingnodeid", vm.ctx.NodeID)
+		log.Debug("Calling zcash.receivetx")
 		vm.zc.CallZcash("receivetx", msg)
+		log.Debug("Calling vm.NotifyBlockReady()")
 		vm.NotifyBlockReady()
 	}
 
@@ -415,15 +472,14 @@ func (vm *VM) Commit() error {
 
 // onBootstrapStarted marks this VM as bootstrapping
 func (vm *VM) onBootstrapStarted() error {
-	log.Info("on bootstrap started")
+	log.Info("Bootstrapping started...")
 	vm.bootstrapped.SetValue(false)
 	return nil
 }
 
 // onNormalOperationsStarted marks this VM as bootstrapped
 func (vm *VM) onNormalOperationsStarted() error {
-	// No need to set it again
-	log.Info("on normal operations started")
+	log.Info("Normal Operations Started")
 	if vm.bootstrapped.GetValue() {
 		return nil
 	}
@@ -436,7 +492,7 @@ func (vm *VM) onNormalOperationsStarted() error {
 // Otherwise, if our chain is ahead of the zcash daemon's chain, catch up the daemon
 // All other states result in an exception
 func (vm *VM) initAndSync() error {
-	log.Info("Entering initAndSync function")
+	log.Debug("initAndSync: begin")
 	stateInitialized, err := vm.state.IsInitialized()
 	if err != nil {
 		return err
@@ -447,8 +503,6 @@ func (vm *VM) initAndSync() error {
 		return err
 	}	
 	
-	log.Info("got height for zcash", "zcash height", zcBlkCount)
-
 	if stateInitialized {
 		err := vm.initializePreference()
 		if err != nil {
@@ -462,7 +516,8 @@ func (vm *VM) initAndSync() error {
 		}
 		preferredHeight := int(preferredBlock.Height())
 
-		log.Info("got zapavm height", "zapavm height", preferredHeight)
+		log.Info("Chain has alreay been initialized", "current zcash height", zcBlkCount, "current zapavm height", preferredHeight)
+		
 		if zcBlkCount > preferredHeight {
 			return fmt.Errorf("Cannot initialize vm when zcash has existing blocks this VM doesn't know about")
 		} 
@@ -480,8 +535,7 @@ func (vm *VM) initAndSync() error {
 			}
 		}
 	} else {
-		// Initialize
-		log.Info("Initializing zapavm by ingesting existing zcash blocks")
+		log.Info("Initializing zapavm by ingesting genesis from zcash")
 
 		var height uint64 = 0
 		parentid := ids.Empty
@@ -497,7 +551,9 @@ func (vm *VM) initAndSync() error {
 			if err != nil {
 				return err
 			}
+			log.Info("Build genesis block", zapablk.LogInfo()...)
 			zapablk.Accept()
+			log.Info("Accepted genesis block", zapablk.LogInfo()...)
 			parentid = zapablk.ID()
 			height++
 		}
@@ -514,7 +570,7 @@ func (vm *VM) initAndSync() error {
 		return err
 	}
 
-	log.Info("finished initialization, committing initialized state")
+	log.Info("initAndSync: finished initialization, Committing initialized state")
 	return vm.state.Commit()
 }
 

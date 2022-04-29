@@ -9,7 +9,7 @@ import (
 	"os/exec"
 
 	"github.com/hashicorp/go-plugin"
-	log "github.com/inconshreveable/log15"
+	// log "github.com/inconshreveable/log15"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
@@ -95,9 +95,9 @@ func main() {
 		os.Exit(0)
 	}
 	
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat())))
+	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat())))
 
-	log.Info("Starting Zapa VM")
+	// log.Info("Starting Zapa VM")
 
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: rpcchainvm.Handshake,

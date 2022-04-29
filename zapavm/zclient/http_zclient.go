@@ -80,7 +80,6 @@ func (zc *ZcashHTTPClient) SendMany(from string, to string, amount float32) ZCas
 }
 
 func (zc *ZcashHTTPClient) GetBlockCount() (int, error) {
-	log.Info("Calling ZcashHttpClient method: GetBlockCount")
 	blkcnt :=  zc.CallZcash("getblockcount", nil)
 	r, e := strconv.Atoi(string(blkcnt.Result))
 	if blkcnt.Error == nil {
@@ -89,42 +88,25 @@ func (zc *ZcashHTTPClient) GetBlockCount() (int, error) {
 	return r, blkcnt.Error
 }
 
-func blockResultFromResp(resp ZCashResponse) ZcashBlockResult {
-	var arr []ZcashBlockResult
-	zbr := ZcashBlockResult{}
-	err := nativejson.Unmarshal(resp.Result, &arr)
-	if err != nil {
-		log.Error("Error unmarshalling block result", "error", err)
-		zbr.Error = err
-		return zbr
-	} else if len(arr) != 1 {
-		errstr := fmt.Errorf("Received unexpected length of response. expected 1. received %d", len(arr))
-		log.Error("error: ", errstr)
-		zbr.Error = errstr
-		return zbr
-	}
-	return arr[0]
-}
-
 func (zc *ZcashHTTPClient) GetZBlock(height int) ZcashBlockResult {
-	log.Info("Calling ZcashHttpClient method: GetBlockCount", "height", height)
 	resp := zc.CallZcashJson("getserializedblock", []interface{}{strconv.Itoa(height)})
 	return blockResultFromResp(resp)
 }
 
 func (zc *ZcashHTTPClient) CallZcashJson(method string, params []interface{}) ZCashResponse {
-	log.Info("Calling Zcash Json", "Method", method, "params", params, "complete host", zc.GetCompleteHost())
+	log.Info("ZcashHTTPClient.CallZcashJson", "Method", method, "Params", params, "Complete Host", zc.GetCompleteHost())
 
 	req := &ZCashRequest{Params: params, Method: method, ID: "fromgo"}
 	b, err := nativejson.Marshal(req)
 	if err != nil {
-		log.Error("Error marshalling request to json")
+		errstr := "Error marshalling request to json"
+		log.Error(errstr, "error", err)
+		return ZCashResponse{Error: fmt.Errorf(errstr)}
 	}
 	return zc.getZcashResponse(b)
 }
 
 func (zc *ZcashHTTPClient) ValidateBlock(zblk nativejson.RawMessage) error {
-	log.Info("Calling ZcashHttpClient ValidateBlock")
 	r := zc.CallZcash("validateBlock", zblk)
 	if r.Error != nil {
 		log.Error("validate block call did not succeed", "error", r.Error)
@@ -152,7 +134,8 @@ func (zc *ZcashHTTPClient) SuggestBlock() ZcashBlockResult {
 }
 
 func (zc *ZcashHTTPClient) CallZcash(method string, zresult nativejson.RawMessage) ZCashResponse {
-	log.Info("Calling Zcash", "Method", method, "params", zresult)
+	log.Info("ZcashHTTPClient.CallZcash", "Method", method, "Complete Host", zc.GetCompleteHost())
+	
 	var req *ZCashRequestJson
 	if zresult != nil {
 		var x []uint8 = []uint8{}
@@ -163,33 +146,61 @@ func (zc *ZcashHTTPClient) CallZcash(method string, zresult nativejson.RawMessag
 	} else {
 		req = &ZCashRequestJson{Params: nil, Method: method, ID: "fromgo"}
 	}
+
 	b, err := nativejson.Marshal(req)
 	if err != nil {
-		fmt.Println(err)
+		log.Error("Error marshalling request", "error", err)
+		return ZCashResponse{Error: err}
 	}
+
 	return zc.getZcashResponse(b)
+}
+
+func blockResultFromResp(resp ZCashResponse) ZcashBlockResult {
+	log.Debug("ZcashHTTPClient.blockResultFromResp: begin")
+	var arr []ZcashBlockResult
+	zbr := ZcashBlockResult{}
+	err := nativejson.Unmarshal(resp.Result, &arr)
+	if err != nil {
+		log.Error("Error unmarshalling block result", "error", err)
+		zbr.Error = err
+		return zbr
+	} else if len(arr) != 1 {
+		errstr := fmt.Errorf("Received unexpected length of response. expected 1. received %d", len(arr))
+		log.Error("error: ", errstr)
+		zbr.Error = errstr
+		return zbr
+	}
+	return arr[0]
 }
 
 func (zc *ZcashHTTPClient) getZcashResponse(b []byte) ZCashResponse {
 	dataz := string(b)
-
 	completeHost := zc.GetCompleteHost()
 	serializedData := strings.NewReader(dataz)
-	log.Info("Connecting to zcash", "Compelte Host", completeHost, "data", serializedData)
+	log.Debug("Connecting to zcash", "Compelte Host", completeHost, "data", serializedData)
 	resp, err := http.Post(completeHost, "application/json", serializedData)
+	
 	if err != nil {
-		log.Error("Error getting zcash response", "error", err)
+		log.Error("Error getting zcash response", "Complete Host", completeHost, "error", err)
+		return ZCashResponse{Error: err}
 	}
+	
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Error("Error reading zcash response", "error", err)
+		log.Error("Error reading zcash response", "Complete Host", completeHost,  "error", err)
+		return ZCashResponse{Error: err}
 	}
+	
 	zresp := ZCashResponse{}
 	nativejson.Unmarshal([]byte(body), &zresp)
-
 	if err != nil {
-		log.Error("Error unmarshalling zcash response", "error", err)
+		log.Error("Error unmarshalling zcash response", "Complete Host", completeHost, "error", err)
+		return ZCashResponse{Error: err}
 	}
+
+	log.Debug("ZcashHttpClient.getZcashResponse: returning", "ZcashResponse", zresp)
+
 	return zresp
 }

@@ -6,6 +6,7 @@ package zapavm
 import (
 	"errors"
 	"fmt"
+	// "fmt"
 	"time"
 
 	nativejson "encoding/json"
@@ -46,41 +47,18 @@ type Block struct {
 
 // Verify returns nil iff this block is valid.
 func (b *Block) Verify() error {
-	log.Info("Calling verify block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
-	log.Info("block info", "id", b.id,  "status", b.status, "creation time", b.CreationTime)
-	blkAtHeight, e := b.vm.GetBlockAtHeight(b.Height())
-	if e == nil {
-		log.Info("block at height info", "id", blkAtHeight.ID(), "status", blkAtHeight.status, "creation time", b.CreationTime)
-	} else {
-		log.Error("Error retrieving block at height", "height", b.Height())
-	}
-	blk, e := b.vm.GetBlock(b.id)
-	if e == nil {
-		block, ok := blk.(*Block)
-		if !ok {
-			return fmt.Errorf("couldn't correctly cast block")
-		}
-		if block.Status() == choices.Accepted {
-			log.Info("already know about this block and it is accepted")
-			return nil
-		}
-		if block.Status() == choices.Rejected {
-			err := "already know about this block and it is rejeected"
-			log.Error(err)
-			return fmt.Errorf(err)
-		}
-	} else {
-		log.Info("don't know about this block yet")
-	}
+	log.Debug("Block.Verify: begin", b.LogInfo()...)
 	if b.ZBlock() != nil {
 		err := b.vm.zc.ValidateBlock(b.ZBlock()) 
 		if err != nil {
 			log.Warn("Validate block returned with an error", "error", err)
 			return err
 		}
+	} else if b.Height() > 0 {
+		return fmt.Errorf("Found block above height 0 (height %d) witout corresponding zcash block", b.Height())
 	}
 
-	log.Info("Successfully validated block")
+	log.Info("Successfully validated block", b.LogInfo()...)
 	b.vm.verifiedBlocks[b.ID()] = b
 
 	return nil
@@ -98,11 +76,11 @@ func (b *Block) Initialize(bytes []byte, status choices.Status, vm *VM) {
 // Accept sets this block's status to Accepted and sets lastAccepted to this
 // block's ID and saves this info to b.vm.DB
 func (b *Block) Accept() error {
-	log.Info("Calling accept block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
+	log.Debug("Block.Accept: begin", b.LogInfo()...)
 
 	if b.Height() > 0 {
 		// Needs to be synced with Zcash Client
-		log.Info("Calling zcash submit block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
+		log.Debug("Calling zcash submit block", b.LogInfo()...)
 		b.vm.zc.SubmitBlock(b.ZBlock())
 	}
 
@@ -122,6 +100,8 @@ func (b *Block) Accept() error {
 	// Delete this block from verified blocks as it's accepted
 	delete(b.vm.verifiedBlocks, b.ID())
 
+	log.Info("Block.Accept: returning. Successfully accepted block", b.LogInfo()...)
+
 	// Commit changes to database
 	return b.vm.state.Commit()
 }
@@ -129,7 +109,7 @@ func (b *Block) Accept() error {
 // Reject sets this block's status to Rejected and saves the status in state
 // Recall that b.vm.DB.Commit() must be called to persist to the DB
 func (b *Block) Reject() error {
-	log.Info("Calling reject block", "nodeid", b.vm.ctx.NodeID.String(), "height", b.Height())
+	log.Debug("Block.Reject: begin", b.LogInfo()...)
 
 	b.SetStatus(choices.Rejected) // Change state of this block
 	if err := b.vm.state.PutBlock(b); err != nil {
@@ -168,3 +148,14 @@ func (b *Block) ZBlock() nativejson.RawMessage {
 
 // SetStatus sets the status of this block
 func (b *Block) SetStatus(status choices.Status) { b.status = status }
+
+func (b *Block) LogInfo() []interface{} {
+	return []interface{}{
+		"blockId", b.ID(), 
+		"blockStatus", b.Status().String(),
+		"blockTimestamp", b.Timestamp(),
+		"blockHeight", b.Height(),
+		"blockProducingNode", b.ProducingNode,
+	}
+
+}

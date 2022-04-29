@@ -72,60 +72,8 @@ type NodeBlockCountReply struct {
 	NodeBlockCounts map[string]int 
 }
 
-
-func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoolReply) error {
-	log.Info("submitting transaction. calling zcash.zendmany from", "nodeid", s.vm.ctx.NodeID)
-	result := s.vm.zc.SendMany(args.From, args.To, args.Amount)
-	s.vm.NotifyBlockReady()
-	reply.SubmittedTx = result.Result
-	s.vm.as.SendAppGossip(result.Result)
-	reply.Mempool = nil
-	return nil
-}
-
-// tells the vm to mine a new block. will usually (but not 100%) cause this node to mine
-func (s *Service) MineBlock(_ *http.Request, args *SubmitTxArgs, reply *SuccessReply) error {
-	if !TestNet {
-		return errors.New("MineBlock can only be used on testnet and we are not on testnet")
-	} 
-	log.Info("suggesting empty block to reap coinbase rewards. can only be used on testnet", "nodeid", s.vm.ctx.NodeID)
-	s.vm.NotifyBlockReady()
-	reply.Success = true
-	return nil
-}
-
-func (s *Service) Zcashrpc(_ *http.Request, args *zclient.ZCashRequest, reply *zclient.ZCashResponse) error {
-	log.Info("calling zcash rpc", "nodeid", s.vm.ctx.NodeID)
-	result := s.vm.zc.CallZcashJson(args.Method, args.Params)
-	reply.Result = result.Result
-	reply.ID = result.ID
-	reply.Error = result.Error
-	return nil
-}
-
-func (s *Service) IsChainEnabled(_ *http.Request, args *EmptyArgs, reply *EnabledReply) error {
-	log.Info("calling is chain enabld", "nodeid", s.vm.ctx.NodeID)
-	reply.Enabled = s.vm.enabled
-	return nil
-}
-
-// associate with new zcash host and port
-func (s *Service) AssociateZcashHostPort(_ *http.Request, args *ZcashHostInfo, reply *SuccessReply) error {
-	log.Info("calling associate zcash host port", "rpc host", args.Host, "rpc port", args.Port)
-	s.vm.zc.SetHost(args.Host)
-	s.vm.zc.SetPort(args.Port)
-	reply.Success = true
-	return nil
-}
-
-func (s *Service) NodeBlockCounts(_ *http.Request, args *NodeBlockCountRequest, reply *NodeBlockCountReply) error {
-	reply.NodeBlockCounts = make(map[string]int)
-	for blk := range s.vm.BlockGenerator(args.FromHeight, args.ToHeight) {
-		if blk.ProducingNode != "" {		
-			reply.NodeBlockCounts[blk.ProducingNode]++
-		}
-	}
-	return nil
+type BlockCountReply struct {
+	Blocks int
 }
 
 
@@ -147,12 +95,82 @@ type GetBlockReply struct {
 	ProducingNode string `json:"producingNode"`
 }
 
+
+
+func (s *Service) SubmitTx(_ *http.Request, args *SubmitTxArgs, reply *GetMempoolReply) error {
+	log.Debug("SubmitTx: begin", "from", args.From, "to", args.To, "amount", args.Amount)
+	result := s.vm.zc.SendMany(args.From, args.To, args.Amount)
+	if result.Error != nil {
+		s.vm.NotifyBlockReady()
+		reply.SubmittedTx = result.Result
+		s.vm.as.SendAppGossip(result.Result)
+		reply.Mempool = nil
+	}
+	return result.Error
+}
+
+func (s *Service) GetBlockCount(_ *http.Request, args *EmptyArgs, reply *BlockCountReply) error {
+	log.Debug("GetBlockCount: begin")
+	b, e := s.vm.state.GetLastAcceptedBlock()
+	if e != nil {
+		return fmt.Errorf("Error fetching last accepted block %e", e)
+	}
+	reply.Blocks = int(b.Height())
+	return nil
+}
+
+// tells the vm to mine a new block. will usually (but not 100%) cause this node to mine
+func (s *Service) MineBlock(_ *http.Request, args *EmptyArgs, reply *SuccessReply) error {
+	log.Debug("MineBlock: begin")
+	if !TestNet {
+		return errors.New("MineBlock can only be used on testnet and we are not on testnet")
+	} 
+	s.vm.NotifyBlockReady()
+	reply.Success = true
+	return nil
+}
+
+func (s *Service) Zcashrpc(_ *http.Request, args *zclient.ZCashRequest, reply *zclient.ZCashResponse) error {
+	log.Debug("Zcashrpc: begin", "method", args.Method)
+	result := s.vm.zc.CallZcashJson(args.Method, args.Params)
+	reply.Result = result.Result
+	reply.ID = result.ID
+	reply.Error = result.Error
+	return reply.Error
+}
+
+func (s *Service) IsChainEnabled(_ *http.Request, args *EmptyArgs, reply *EnabledReply) error {
+	log.Debug("IsChainEnabled: begin", "nodeid", s.vm.ctx.NodeID)
+	reply.Enabled = s.vm.enabled
+	return nil
+}
+
+// associate with new zcash host and port
+func (s *Service) AssociateZcashHostPort(_ *http.Request, args *ZcashHostInfo, reply *SuccessReply) error {
+	log.Debug("AssociateZcashHostPort: begin", "rpc host", args.Host, "rpc port", args.Port)
+	s.vm.zc.SetHost(args.Host)
+	s.vm.zc.SetPort(args.Port)
+	reply.Success = true
+	return nil
+}
+
+func (s *Service) NodeBlockCounts(_ *http.Request, args *NodeBlockCountRequest, reply *NodeBlockCountReply) error {
+	log.Debug("NodeBlockCounts: begin", "from height", args.FromHeight, "to height", args.ToHeight)
+	reply.NodeBlockCounts = make(map[string]int)
+	for blk := range s.vm.BlockGenerator(args.FromHeight, args.ToHeight) {
+		if blk.ProducingNode != "" {		
+			reply.NodeBlockCounts[blk.ProducingNode]++
+		}
+	}
+	return nil
+}
+
 // GetBlock gets the block whose ID is [args.ID]
 // If [args.ID] is empty, get the latest block
 func (s *Service) GetBlock(_ *http.Request, args *GetBlockArgs, reply *GetBlockReply) error {
 	// If an ID is given, parse its string representation to an ids.ID
 	// If no ID is given, ID becomes the ID of last accepted block
-	log.Info("getting block")
+	log.Debug("GetBlock: begin", "id", args.ID, "height", args.Height)
 	var (
 		id  ids.ID
 		err error

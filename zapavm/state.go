@@ -4,6 +4,8 @@
 package zapavm
 
 import (
+	"fmt"
+
 	"github.com/ava-labs/avalanchego/chains/atomic"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/prefixdb"
@@ -47,10 +49,10 @@ type state struct {
 }
 
 func (s *state) PutBlock(blk *Block) error {
-	log.Info("state.Putblock");
+	log.Debug("Putblock: begin", blk.LogInfo()...);
 	pberr := s.BlockState.PutBlock(blk)
 	if pberr != nil {
-		return pberr
+		return fmt.Errorf("Error calling BlockState.PutBlock: %e", pberr)
 	}
 	if blk.Status() == choices.Accepted {
 		return s.HeightIndex.SetBlockIDAtHeight(blk.Hght, blk.id)
@@ -59,6 +61,7 @@ func (s *state) PutBlock(blk *Block) error {
 }
 
 func DeleteDb(db database.Database) error {
+	log.Info("DeleteDb: begin. Deleting database...")
 	dataBatch := db.NewBatch()
 	var err error
 	it := db.NewIterator()
@@ -67,10 +70,9 @@ func DeleteDb(db database.Database) error {
 
 	for it.Next() {
 		if err = dataBatch.Delete(it.Key()); err != nil {
-			log.Error("Error deleting key", "key", it.Key(), "error", err)
-			return err
+			return fmt.Errorf("Error deleting key %s: %e", it.Key(), err)
 		}
-		log.Info("deleted key", "key", it.Key())
+		log.Debug("Deleted", "key", it.Key())
 		deletedItems += 1
 	}
 
@@ -88,6 +90,8 @@ func DeleteDb(db database.Database) error {
 
 
 func NewState(db database.Database, vm *VM) State {
+	log.Debug("NewState: begin")
+
 	// create a new baseDB
 	baseDB := versiondb.New(db)
 
@@ -105,6 +109,7 @@ func NewState(db database.Database, vm *VM) State {
 	heightDB := prefixdb.New([]byte(heightDBPref), baseDB)
 
 	// return state with created sub state components
+	log.Debug("NewState: returning")
 	return &state{
 		BlockState:     NewBlockState(blockDB, vm),
 		SingletonState: avax.NewSingletonState(singletonDB),
@@ -124,6 +129,6 @@ func (s *state) Close() error {
 }
 
 func (s *state) ClearState() error {
-	log.Info("clearing state...")
+	log.Debug("ClearState: begin")
 	return DeleteDb(s.baseDB)
 }

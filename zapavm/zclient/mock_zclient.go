@@ -4,6 +4,7 @@ import (
 	nativejson "encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strconv"
 
 	log "github.com/inconshreveable/log15"
@@ -24,11 +25,11 @@ func NewDefaultMock() *ZCashMockClient {
 }
 
 func (zc *ZCashMockClient) SetHost(host string) {
-	log.Warn("Calling set host on mock client. This is a no-op.", "host", host)
+	log.Warn("ZCMockClient.SetHost is a no-op", "host", host)
 }
 
 func (zc *ZCashMockClient) SetPort(port int) {
-	log.Warn("Calling set port on mock client. This is a no-op.", "port", port)
+	log.Warn("ZCMockClient.SetPort is a no-op", "port", port)
 }
 
 func (zc *ZCashMockClient) SendMany(from string, to string, amount float32) ZCashResponse {
@@ -41,13 +42,15 @@ func (zc *ZCashMockClient) SendMany(from string, to string, amount float32) ZCas
 }
 
 func (zc *ZCashMockClient) GetBlockCount() (int, error) {
-	log.Info("Calling ZcashMockClient GetBlockCount")
+	log.Info("ZCMockClient.GetBlockCount")
 	return zc.InitialBlocks, nil
 }
 
 func (zc *ZCashMockClient) GetZBlock(height int) ZcashBlockResult {
-	log.Info("Calling ZcashMockClient GetZBlock", "height", height)
-	plan, _ := ioutil.ReadFile("/Users/rkass/repos/zapa/zapavm/zapavm/mocks/block" + strconv.Itoa(height + 1) + ".json")
+	log.Info("ZCMockClient.GetZBlock", "height", height)
+	h, _ := os.LookupEnv("HOME")
+	fname := h + "repos/zapa/zapavm/zapavm/mocks/block" + strconv.Itoa(height + 1) + ".json"
+	plan, _ := ioutil.ReadFile(fname)
 	return ZcashBlockResult{
 		Block: plan,
 		Timestamp: int64(height),
@@ -55,22 +58,22 @@ func (zc *ZCashMockClient) GetZBlock(height int) ZcashBlockResult {
 }
 
 func (zc *ZCashMockClient) ValidateBlock(zblk nativejson.RawMessage) error {
-	log.Info("Calling ZcashMockClient ValidateBlock. Naively returning nil indicating a valid block")
+	log.Info("ZCMockClient.ValidateBlock. Naively returning nil indicating a valid block")
 	return nil
 }
 
 func (zc *ZCashMockClient) SubmitBlock(zblk nativejson.RawMessage) error {
-	log.Info("Calling ZcashMockClient Submit. Naively returning nil indicating a success")
+	log.Info("ZCMockClient.Submit. Naively returning nil indicating a success")
 	return nil
 }
 
 func (zc *ZCashMockClient) SuggestBlock() ZcashBlockResult {
-	log.Warn("Calling ZCashMockClient suggest block. Returning empty response")
+	log.Warn("ZCMockClient.SuggestBlock. Returning empty response")
 	return ZcashBlockResult{}
 }
 
 func (zc *ZCashMockClient) CallZcash(method string, zresult nativejson.RawMessage) ZCashResponse {
-	errString := "Calling CallZcash with mock client. This is a no-op."
+	errString := "ZCMockClient.CallZcash with mock client. This is a no-op."
 	log.Warn(errString)
 
 	return ZCashResponse{
