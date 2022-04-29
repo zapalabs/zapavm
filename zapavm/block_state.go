@@ -28,6 +28,7 @@ var _ BlockState = &blockState{}
 type BlockState interface {
 	GetBlock(blkID ids.ID) (*Block, error)
 	PutBlock(blk *Block) error
+	GetLastAcceptedBlock() (*Block, error) 
 
 	GetLastAccepted() (ids.ID, error)
 	SetLastAccepted(ids.ID) error
@@ -154,6 +155,14 @@ func (s *blockState) GetLastAccepted() (ids.ID, error) {
 	// put lastAccepted ID into memory
 	s.lastAccepted = lastAccepted
 	return lastAccepted, nil
+}
+
+func (s *blockState) GetLastAcceptedBlock() (*Block, error) {
+	id, err := s.GetLastAccepted()
+	if err != nil {
+		return &Block{}, err
+	}
+	return s.GetBlock(id)
 }
 
 // SetLastAccepted persists lastAccepted ID into both cache and database

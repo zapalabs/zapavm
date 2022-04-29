@@ -30,13 +30,13 @@ var (
 // Each block contains:
 // 1) ParentID
 // 2) Height
-// 3) Timestamp
-// 4) A piece of data (a string)
+// 3) ZBlk -- the serialized zcash block
 type Block struct {
-	PrntID ids.ID                `serialize:"true" json:"parentID"`  // parent's ID
-	Hght   uint64                `serialize:"true" json:"height"`    // This block's height. The genesis block is at height 0.
-	Tmstmp int64                 `serialize:"true" json:"timestamp"` // Time this block was proposed at
-	ZBlk   nativejson.RawMessage `serialize:"true" json:"zblock"`    // zcash block
+	PrntID ids.ID                   `serialize:"true" json:"parentID"`  // parent's ID
+	Hght   uint64                   `serialize:"true" json:"height"`    // This block's height. The genesis block is at height 0.
+	ZBlk   nativejson.RawMessage    `serialize:"true" json:"zblock"`    // zcash block
+	CreationTime int64              `serialize:"true" json:"creationTime"`
+	ProducingNode string            `serialize:"true" json:"producingNode"`
 
 	id     ids.ID         // hold this block's ID
 	bytes  []byte         // this block's encoded bytes
@@ -46,13 +46,18 @@ type Block struct {
 
 // Verify returns nil iff this block is valid.
 func (b *Block) Verify() error {
-	if b.ZBlock != nil {
-		r := CallZcash("validateBlock", b.ZBlock(), b.vm.GetNodeNum())
-		s := string(r.Result[:])
-		if s != "null" {
-			return fmt.Errorf("validate block returned error " + s)
+	log.Debug("Block.Verify: begin", b.LogInfo()...)
+	if b.ZBlock() != nil {
+		err := b.vm.zc.ValidateBlock(b.ZBlock()) 
+		if err != nil {
+			log.Warn("Validate block returned with an error", "error", err)
+			return err
 		}
+	} else if b.Height() > 0 {
+		return fmt.Errorf("Found block above height 0 (height %d) witout corresponding zcash block", b.Height())
 	}
+
+	log.Info("Successfully validated block", b.LogInfo()...)
 	b.vm.verifiedBlocks[b.ID()] = b
 
 	return nil
@@ -70,10 +75,12 @@ func (b *Block) Initialize(bytes []byte, status choices.Status, vm *VM) {
 // Accept sets this block's status to Accepted and sets lastAccepted to this
 // block's ID and saves this info to b.vm.DB
 func (b *Block) Accept() error {
+	log.Debug("Block.Accept: begin", b.LogInfo()...)
 
-	if b.ZBlock() != nil {
-		log.Info("Calling accept block from", "nodeid", b.vm.ctx.NodeID.String(), "nodenum", b.vm.GetNodeNum())
-		CallZcash("submitblock", b.ZBlock(), b.vm.GetNodeNum())
+	if b.Height() > 0 {
+		// Needs to be synced with Zcash Client
+		log.Debug("Calling zcash submit block", b.LogInfo()...)
+		b.vm.zc.SubmitBlock(b.ZBlock())
 	}
 
 	b.SetStatus(choices.Accepted) // Change state of this block
@@ -92,6 +99,8 @@ func (b *Block) Accept() error {
 	// Delete this block from verified blocks as it's accepted
 	delete(b.vm.verifiedBlocks, b.ID())
 
+	log.Info("Block.Accept: returning. Successfully accepted block", b.LogInfo()...)
+
 	// Commit changes to database
 	return b.vm.state.Commit()
 }
@@ -99,6 +108,8 @@ func (b *Block) Accept() error {
 // Reject sets this block's status to Rejected and saves the status in state
 // Recall that b.vm.DB.Commit() must be called to persist to the DB
 func (b *Block) Reject() error {
+	log.Debug("Block.Reject: begin", b.LogInfo()...)
+
 	b.SetStatus(choices.Rejected) // Change state of this block
 	if err := b.vm.state.PutBlock(b); err != nil {
 		return err
@@ -118,8 +129,11 @@ func (b *Block) Parent() ids.ID { return b.PrntID }
 // Height returns this block's height. The genesis block has height 0.
 func (b *Block) Height() uint64 { return b.Hght }
 
-// Timestamp returns this block's time. The genesis block has time 0.
-func (b *Block) Timestamp() time.Time { return time.Unix(b.Tmstmp, 0) }
+// Timestamp returns this block's time. The genesis block has time 0. For now, return
+// the root timesamp (2022-01-01) for genesis plus one second for each additional block
+func (b *Block) Timestamp() time.Time { 
+	return time.Unix(b.CreationTime, 0)
+}
 
 // Status returns the status of this block
 func (b *Block) Status() choices.Status { return b.status }
@@ -133,3 +147,14 @@ func (b *Block) ZBlock() nativejson.RawMessage {
 
 // SetStatus sets the status of this block
 func (b *Block) SetStatus(status choices.Status) { b.status = status }
+
+func (b *Block) LogInfo() []interface{} {
+	return []interface{}{
+		"blockId", b.ID(), 
+		"blockStatus", b.Status().String(),
+		"blockTimestamp", b.Timestamp(),
+		"blockHeight", b.Height(),
+		"blockProducingNode", b.ProducingNode,
+	}
+
+}

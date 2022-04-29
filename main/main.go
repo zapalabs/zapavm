@@ -6,18 +6,15 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"time"
+	"os/exec"
 
 	"github.com/hashicorp/go-plugin"
-	log "github.com/inconshreveable/log15"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
-	"github.com/rkass/zapavm/zapavm"
+	"github.com/zapalabs/zapavm/zapavm"
+	"github.com/zapalabs/zapavm/zapavm/zclient"
 )
-
-const logFile = "../zapavm/logs/log"
 
 func main() {
 	version, err := PrintVersion()
@@ -26,14 +23,13 @@ func main() {
 			genesis := &zapavm.Block{
 				PrntID: ids.Empty,
 				Hght:   0,
-				Tmstmp: time.Unix(0, 0).Unix(),
 				ZBlk:   nil,
 			}
-			sugblk := zapavm.CallZcash("suggest", nil, 0)
+			zc := &zclient.ZcashHTTPClient{}
+			sugblk := zc.CallZcash("suggest", nil)
 			block2 := &zapavm.Block{
 				PrntID: genesis.ID(),
 				Hght:   genesis.Height() + 1,
-				Tmstmp: time.Now().Unix(),
 				ZBlk:   sugblk.Result,
 			}
 
@@ -57,6 +53,35 @@ func main() {
 
 			return
 		}
+		if os.Args[1] == "iterateBlocks" {
+			zc := &zclient.ZcashHTTPClient{}
+			zc.Port = 8233
+			x := 0
+			for i := range(zclient.BlockGenerator(zc)) {
+				fmt.Print(i.Block)
+				fmt.Print(i.Timestamp)
+				x++;
+			}
+			fmt.Print(x)
+			return
+		}
+		if os.Args[1] == "testLaunchScript" {
+			cmd, err := exec.Command("/bin/sh", "/Users/rkass/repos/zapa/zapavm/main/script.sh").Output()
+			if err != nil {
+				fmt.Printf("error %s", err)
+			}
+			output := string(cmd)
+			fmt.Print(output)
+		}
+		if os.Args[1] == "generatevmid" {
+			// doesn't work
+			id,err := ids.FromString("zapavm")
+			if err != nil {
+				fmt.Printf("error %s", err)
+				os.Exit(1)
+			}
+			fmt.Print(id)
+		}
 	}
 
 	if err != nil {
@@ -69,13 +94,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	fp, _ := filepath.Abs(logFile)
-	lh, e := log.FileHandler(fp, log.TerminalFormat())
-	if e != nil {
-		fmt.Printf("Couldn't open log file handler %s", e)
-		os.Exit(1)
-	}
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlDebug, lh))
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: rpcchainvm.Handshake,
 		Plugins: map[string]plugin.Plugin{
