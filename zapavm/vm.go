@@ -612,7 +612,6 @@ func (vm *VM) BlockGenerator(min *int, max *int) chan Block {
 			}
 			c <- *currBlock
 			height++
-			log.Info("printing ids", "currblock id", currBlock.ID(), "last block id", lastBlock.ID(), "!equal?", !(currBlock.ID().String() == lastBlock.ID().String()), "currBlock nil?", currBlock == nil, "whole thing", currBlock == nil || !(currBlock.ID().String() == lastBlock.ID().String()))
 		}
 	}()
 
