@@ -398,7 +398,7 @@ Get information about which nodes have produced how many blocks
 
 ```
 {
-  `"NodeBlockCounts"    Dictionary(string->integer)`  A dictionary indicating how many blocks each node has produced. Keys are node IDs and values are block counts.
+  "NodeBlockCounts"    Dictionary(string->integer)`  A dictionary indicating how many blocks each node has produced. Keys are node IDs and values are block counts.
 }
 ```
 
