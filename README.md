@@ -2,7 +2,7 @@
 
 Zapavm defines a virtual machine that facilitates private transactions such that the identities of the sender and receiver are hidden. Zapavm is deployed and run on top of an Avalanche subnet, and communicates with an instance of `zcashd` to offload the cryptography required to orchestrate private transactions. That is, in order to be functional, this vm requires a corresponding running instance of `zcashd`. See [these instructions](https://github.com/zapalabs/zcash/blob/master/doc/running.md) for how to launch an instance of `zcashd` adopted for this use case. This go vm is a relay point between `rpcchainvm` and `zcashd`. Each block is a thin wrapper around a serialized zcash block. The go vm defined in this repo handles all networking and consensus.
 
-Zapavm is served over RPC with [go-plugin](https://github.com/hashicorp/go-plugin).
+Zapavm is served over RPC with [go-plugin](https://github.com/hashicorp/go-plugin). 
 
 # Builds
 
