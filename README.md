@@ -8,7 +8,7 @@ Zapavm is served over RPC with [go-plugin](https://github.com/hashicorp/go-plugi
 
 This repo comes with two pre-built binaries [zapavm-ubuntu](./builds/zapavm-ubuntu) and [zapavm-osx](./builds/zapavm-osx)
 
-# Building
+# Building 
 
 `./scripts/build.sh builds zapavm`
 
