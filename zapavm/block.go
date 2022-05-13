@@ -37,8 +37,8 @@ type Block struct {
 	ZBlk   nativejson.RawMessage    `serialize:"true" json:"zblock"`    // zcash block
 	CreationTime int64              `serialize:"true" json:"creationTime"`
 	ProducingNode string            `serialize:"true" json:"producingNode"`
-	ZHash    string                 `serialize:"true" json:"zhash,omitempty"`
-	ZParent  string                 `serialize:"true" json:"zparent,omitempty"`
+	ZHash    string                 
+	ZParent  string                 
 
 	id     ids.ID         // hold this block's ID
 	bytes  []byte         // this block's encoded bytes
