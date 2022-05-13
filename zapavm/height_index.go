@@ -7,6 +7,8 @@ import (
 	"github.com/ava-labs/avalanchego/database/versiondb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	pstate "github.com/ava-labs/avalanchego/vms/proposervm/state"
+
 )
 
 const cacheSize = 8192
@@ -19,6 +21,12 @@ var (
 	forkKey       = []byte("fork")
 	checkpointKey = []byte("checkpoint")
 )
+
+type HeightIndex interface {
+	pstate.HeightIndex
+
+	DeleteBlockAtHeight(height uint64) error
+}
 
 type ZapaHeightIndex struct {
 	versiondb.Commitable

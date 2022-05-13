@@ -32,6 +32,8 @@ type BlockState interface {
 
 	GetLastAccepted() (ids.ID, error)
 	SetLastAccepted(ids.ID) error
+	DeleteBlock(blkID ids.ID) error
+	
 }
 
 // blockState implements BlocksState interface with database and cache.

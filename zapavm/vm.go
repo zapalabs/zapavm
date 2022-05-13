@@ -534,15 +534,18 @@ func (vm *VM) initAndSync() error {
 			e = blk.Verify()
 			if e != nil {
 				log.Info("Error. Deleting this and all subsequent blocks", "error", e, "height", blk.Height())
-
+				blk_prev, _ := vm.GetBlockIDAtHeight(uint64(zcBlkCount) - 1)
+				vm.state.SetLastAccepted(blk_prev)
 				for preferredHeight > zcBlkCount {
 					blk, _ = vm.GetBlockAtHeight(uint64(zcBlkCount))
 					e = blk.Reject()
+					vm.state.DeleteBlockAtHeight(uint64(zcBlkCount))
+					vm.state.DeleteBlock(blk.id)
 					if e != nil {
 						log.Error("Error rejecting block", "error", e)
 						return e
 					}
-					
+
 					log.Info("Rejected block at height", "height", blk.Height(), "status", blk.Status())
 					zcBlkCount += 1
 				}

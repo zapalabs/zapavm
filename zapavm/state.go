@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/database/versiondb"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
-	pstate "github.com/ava-labs/avalanchego/vms/proposervm/state"
 	log "github.com/inconshreveable/log15"
 )
 
@@ -33,7 +32,7 @@ type State interface {
 	// it is used to understand if db is initialized already.
 	avax.SingletonState
 	BlockState
-	pstate.HeightIndex
+	HeightIndex
 
 	Commit() error
 	Close() error
@@ -43,7 +42,7 @@ type State interface {
 type state struct {
 	avax.SingletonState
 	BlockState
-	pstate.HeightIndex
+	HeightIndex
 
 	baseDB *versiondb.Database
 }
