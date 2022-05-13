@@ -537,6 +537,7 @@ func (vm *VM) initAndSync() error {
 				for blk != nil {
 					blk.Reject()
 					blk, _ = vm.GetBlockAtHeight(uint64(zcBlkCount))
+					zcBlkCount += 1
 				}
 				break
 			}
