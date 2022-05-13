@@ -113,10 +113,12 @@ func NewState(db database.Database, vm *VM) State {
 	return &state{
 		BlockState:     NewBlockState(blockDB, vm),
 		SingletonState: avax.NewSingletonState(singletonDB),
-		HeightIndex:    pstate.NewHeightIndex(heightDB, baseDB),
+		HeightIndex:    NewZapaHeightIndex(heightDB, baseDB),
 		baseDB:         baseDB,
 	}
 }
+
+
 
 // Commit commits pending operations to baseDB
 func (s *state) Commit() error {
