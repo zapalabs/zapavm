@@ -536,7 +536,11 @@ func (vm *VM) initAndSync() error {
 				log.Info("Error. Deleting this and all subsequent blocks", "error", e, "height", blk.Height())
 				for preferredHeight > zcBlkCount {
 					blk, _ = vm.GetBlockAtHeight(uint64(zcBlkCount))
-					blk.Reject()
+					e = blk.Reject()
+					if e != nil {
+						log.Error("Error rejecting block", "error", e)
+						return e
+					}
 					zcBlkCount += 1
 				}
 				vm.initializePreference()
