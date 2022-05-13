@@ -49,6 +49,7 @@ type Block struct {
 // Verify returns nil iff this block is valid.
 func (b *Block) Verify() error {
 	log.Debug("Block.Verify: begin", b.LogInfo()...)
+	log.Info("verifying block", "height", b.Hght, "bytes", b.ZBlk)
 	if b.ZBlock() != nil {
 		err := b.vm.zc.ValidateBlock(b.ZBlock()) 
 		if err != nil {
