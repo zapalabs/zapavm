@@ -539,6 +539,7 @@ func (vm *VM) initAndSync() error {
 					blk.Reject()
 					zcBlkCount += 1
 				}
+				vm.initializePreference()
 				break
 			}
 			e = vm.zc.SubmitBlock(blk.ZBlock())
