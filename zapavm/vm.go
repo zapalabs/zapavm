@@ -549,7 +549,7 @@ func (vm *VM) initAndSync() error {
 			if blk.Error != nil {
 				return fmt.Errorf("Error when retrieving block from zcash %e", blk.Error)
 			}
-			zapablk, err := vm.NewBlock(parentid, height, blk.Block, blk.Timestamp)
+			zapablk, err := vm.NewBlock(parentid, height, blk.Block, blk.Timestamp, blk.Hash, blk.ParentHash)
 			if err != nil {
 				return err
 			}
