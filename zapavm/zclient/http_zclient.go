@@ -168,7 +168,7 @@ func blockResultFromResp(resp ZCashResponse) ZcashBlockResult {
 		return zbr
 	} else if len(arr) != 1 {
 		errstr := fmt.Errorf("Received unexpected length of response. expected 1. received %d", len(arr))
-		log.Error("error: %s", errstr)
+		log.Error("error", "detail", errstr)
 		zbr.Error = errstr
 		return zbr
 	}
