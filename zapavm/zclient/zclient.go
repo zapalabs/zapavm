@@ -35,6 +35,8 @@ type ZCashRequestJson struct {
 type ZcashBlockResult struct {
 	Block nativejson.RawMessage `json:"block"`
 	Timestamp int64             `json:"timestamp"`
+	Hash string                 `json:"hash"`
+	ParentHash string           `json:"parent"`
 	Error error
 }
 

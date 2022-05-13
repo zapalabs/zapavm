@@ -84,6 +84,8 @@ type GetBlockArgs struct {
 	ID *ids.ID `json:"id"`
 
 	Height *int `json:"height"`
+
+	Supplement bool `json:"supplement"`
 }
 
 // GetBlockReply is the reply from GetBlock
@@ -93,6 +95,8 @@ type GetBlockReply struct {
 	ID        ids.ID      `json:"id"`        // String repr. of ID of the most recent block
 	ParentID  ids.ID      `json:"parentID"`  // String repr. of ID of the most recent block's parent
 	ProducingNode string `json:"producingNode"`
+	Hash     string     `json:"hash"`
+	Parent   string      `json:"parent"`
 }
 
 
@@ -199,12 +203,24 @@ func (s *Service) GetBlock(_ *http.Request, args *GetBlockArgs, reply *GetBlockR
 		return fmt.Errorf("Error retrieving block %e", err)
 	}
 
-	// Fill out the response with the block's data
 	reply.ID = block.ID()
 	reply.Timestamp = json.Uint64(block.Timestamp().Unix())
+	reply.Hash = block.ZHash
+	reply.Parent = block.ZParent
 	reply.ParentID = block.Parent()
 	reply.ProducingNode = block.ProducingNode
 	reply.Data = string(block.Bytes())
+
+	if args.Supplement && args.ID == nil {
+		rep := s.vm.zc.GetZBlock(*args.Height)
+		reply.Hash = rep.Hash
+		reply.Parent = rep.ParentHash
+	}
+
+	
+
+	// Fill out the response with the block's data
+
 
 	return err
 }

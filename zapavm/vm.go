@@ -296,7 +296,7 @@ func (vm *VM) BuildBlock() (snowman.Block, error) {
 	preferredHeight := preferredBlock.Height()
 
 	// Build the block with preferred height
-	newBlock, err := vm.NewBlock(vm.preferred, preferredHeight+1, suggestResult.Block, suggestResult.Timestamp)
+	newBlock, err := vm.NewBlock(vm.preferred, preferredHeight+1, suggestResult.Block, suggestResult.Timestamp, suggestResult.Hash, suggestResult.ParentHash)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't build block: %w", err)
 	}
@@ -376,13 +376,15 @@ func (vm *VM) ParseBlock(bytes []byte) (snowman.Block, error) {
 // - the block's parent is [parentID]
 // - the block's data is [data]
 // - the block's timestamp is [timestamp]
-func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMessage, timestamp int64) (*Block, error) {
+func (vm *VM) NewBlock(parentID ids.ID, height uint64, zblock nativejson.RawMessage, timestamp int64, hash string, parentHash string) (*Block, error) {
 	log.Debug("NewBlock: begin")
 	block := &Block{
 		PrntID: parentID,
 		Hght:   height,
 		ZBlk:   zblock,
 		CreationTime: timestamp,
+		ZHash: hash,
+		ZParent: parentHash,
 	}
 
 	if height > 0 {
