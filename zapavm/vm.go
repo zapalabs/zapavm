@@ -541,6 +541,7 @@ func (vm *VM) initAndSync() error {
 						log.Error("Error rejecting block", "error", e)
 						return e
 					}
+					log.Info("Rejected block at height", "height", blk.Height(), "status", blk.Status())
 					zcBlkCount += 1
 				}
 				vm.initializePreference()
