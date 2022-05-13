@@ -534,9 +534,9 @@ func (vm *VM) initAndSync() error {
 			e = blk.Verify()
 			if e != nil {
 				log.Info("Error. Deleting this and all subsequent blocks", "error", e, "height", blk.Height())
-				for blk != nil {
-					blk.Reject()
+				for preferredHeight > zcBlkCount {
 					blk, _ = vm.GetBlockAtHeight(uint64(zcBlkCount))
+					blk.Reject()
 					zcBlkCount += 1
 				}
 				break
