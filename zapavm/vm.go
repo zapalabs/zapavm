@@ -535,6 +535,8 @@ func (vm *VM) initAndSync() error {
 			if e != nil {
 				return fmt.Errorf("error while submitting block when syncing zcash %e", e)
 			}
+			blk.Refresh()
+			vm.state.PutBlock(blk)
 		}
 	} else {
 		log.Info("Initializing zapavm by ingesting genesis from zcash")

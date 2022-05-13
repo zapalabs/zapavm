@@ -66,6 +66,12 @@ func (b *Block) Verify() error {
 	return nil
 }
 
+func (b *Block) Refresh() error {
+	reply := b.vm.zc.GetZBlock(int(b.Height()))
+	b.ZBlk = reply.Block
+	return nil
+}
+
 // Initialize sets [b.bytes] to [bytes], [b.id] to hash([b.bytes]),
 // [b.status] to [status] and [b.vm] to [vm]
 func (b *Block) Initialize(bytes []byte, status choices.Status, vm *VM) {
