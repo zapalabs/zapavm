@@ -531,6 +531,15 @@ func (vm *VM) initAndSync() error {
 			if e != nil {
 				return e
 			}
+			e = blk.Verify()
+			if e != nil {
+				log.Info("Error. Deleting this and all subsequent blocks", "error", e, "height", blk.Height())
+				for blk != nil {
+					blk.Reject()
+					blk, _ = vm.GetBlockAtHeight(uint64(zcBlkCount))
+				}
+				break
+			}
 			e = vm.zc.SubmitBlock(blk.ZBlock())
 			if e != nil {
 				return fmt.Errorf("error while submitting block when syncing zcash %e", e)
