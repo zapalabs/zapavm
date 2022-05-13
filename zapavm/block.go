@@ -50,6 +50,23 @@ type Block struct {
 func (b *Block) Verify() error {
 	log.Debug("Block.Verify: begin", b.LogInfo()...)
 	log.Info("verifying block", "height", b.Hght, "bytes", b.ZBlk)
+	// Get [b]'s parent
+	parentID := b.Parent()
+	parent, err := b.vm.getBlock(parentID)
+	if err != nil {
+		return errDatabaseGet
+	}
+
+	// Ensure [b]'s height comes right after its parent's height
+	if expectedHeight := parent.Height() + 1; expectedHeight != b.Hght {
+		return fmt.Errorf(
+			"expected block to have height %d, but found %d",
+			expectedHeight,
+			b.Hght,
+		)
+	}
+
+
 	if b.ZBlock() != nil {
 		err := b.vm.zc.ValidateBlock(b.ZBlock()) 
 		if err != nil {
