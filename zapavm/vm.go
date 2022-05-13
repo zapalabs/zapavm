@@ -526,8 +526,8 @@ func (vm *VM) initAndSync() error {
 
 		for preferredHeight > zcBlkCount {
 			zcBlkCount += 1
-			log.Info("Syncing block with zcash", "block number", zcBlkCount)
 			blk, e := vm.GetBlockAtHeight(uint64(zcBlkCount))
+			log.Info("Syncing block with zcash", "block number", zcBlkCount, "zbytes", blk.ZBlock())
 			if e != nil {
 				return e
 			}
