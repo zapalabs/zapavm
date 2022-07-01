@@ -48,18 +48,12 @@ type Block struct {
 func (b *Block) Verify() error {
 	log.Debug("Block.Verify: begin", b.LogInfo()...)
 	if b.ZBlock() != nil {
-		pb, err := b.vm.getBlock(b.Parent())
+		agg, err := findNotAcceptedAncestorBlocks(b)
 		if err != nil {
-			log.Warn("Get parent block returned with an error", "error", err)
+			log.Warn("findNotAcceptedAncestorBlocks returned with an error", "error", err)
 			return err
 		}
-		var agg []byte
-		if pb.Status() != choices.Accepted {
-			agg = buildBlockArray(b.ZBlock(), pb.ZBlk)
-		} else {
-			agg = buildBlockArray(b.ZBlock(), nil)
-		}
-		err = b.vm.zc.ValidateBlocks(agg)
+		err = b.vm.zc.ValidateBlocks(buildBlockArray(agg))
 		if err != nil {
 			log.Warn("Validate blocks returned with an error", "error", err)
 			return err
@@ -74,14 +68,34 @@ func (b *Block) Verify() error {
 	return nil
 }
 
-func buildBlockArray(src, src2 []byte) (dst []byte) {
-	dst = append([]byte{91}, src...)
-	if src2 != nil {
-		dst = append(dst, []byte{44}...)
-		dst = append(dst, src2...)
+func findNotAcceptedAncestorBlocks(b *Block) (agg [][]byte, err error) {
+	agg = append(agg, b.ZBlock())
+	pb, err := b.vm.getBlock(b.Parent())
+	if err != nil {
+		log.Warn("Get parent block returned with an error", "error", err)
+		return
 	}
-	dst = append(dst, []byte{93}...)
-	return dst
+	if pb.Status() != choices.Accepted {
+		var ancestors [][]byte
+		ancestors, err = findNotAcceptedAncestorBlocks(pb)
+		if err != nil {
+			return
+		}
+		agg = append(agg, ancestors...)
+	}
+	return
+}
+
+func buildBlockArray(blocks [][]byte) (dst []byte) {
+	dst = []byte{91} // opening bracket
+	for i, b := range blocks {
+		if i > 0 {
+			dst = append(dst, 44) // add comma
+		}
+		dst = append(dst, b...)
+	}
+	dst = append(dst, 93) // closing bracket
+	return
 }
 
 // Initialize sets [b.bytes] to [bytes], [b.id] to hash([b.bytes]),
