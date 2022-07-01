@@ -106,16 +106,16 @@ func (zc *ZcashHTTPClient) CallZcashJson(method string, params []interface{}) ZC
 	return zc.getZcashResponse(b)
 }
 
-func (zc *ZcashHTTPClient) ValidateBlock(zblk nativejson.RawMessage) error {
-	r := zc.CallZcash("validateBlock", zblk)
+func (zc *ZcashHTTPClient) ValidateBlocks(zblk nativejson.RawMessage) error {
+	r := zc.CallZcash("validateBlocks", zblk)
 	if r.Error != nil {
-		log.Error("validate block call did not succeed", "error", r.Error)
+		log.Error("validate blocks call did not succeed", "error", r.Error)
 		return r.Error.Error()
 	}
 	s := string(r.Result[:])
 	if s != "null" {
-		log.Error("validate block returned error", "s", s)
-		return fmt.Errorf("error validating block")
+		log.Error("validate blocks returned error", "s", s)
+		return fmt.Errorf("error validating blocks")
 	}
 	return nil
 }

@@ -44,7 +44,7 @@ type ZcashClient interface {
 	SendMany(from string, to string, amount float32) ZCashResponse
 	GetBlockCount() (int, error)
 	GetZBlock(height int) ZcashBlockResult
-	ValidateBlock(zblk nativejson.RawMessage) error
+	ValidateBlocks(zblk nativejson.RawMessage) error
 	SubmitBlock(zblk nativejson.RawMessage) error
 	SuggestBlock() ZcashBlockResult
 	CallZcash(method string, zresult nativejson.RawMessage) ZCashResponse

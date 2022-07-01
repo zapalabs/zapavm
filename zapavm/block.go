@@ -32,11 +32,11 @@ var (
 // 2) Height
 // 3) ZBlk -- the serialized zcash block
 type Block struct {
-	PrntID ids.ID                   `serialize:"true" json:"parentID"`  // parent's ID
-	Hght   uint64                   `serialize:"true" json:"height"`    // This block's height. The genesis block is at height 0.
-	ZBlk   nativejson.RawMessage    `serialize:"true" json:"zblock"`    // zcash block
-	CreationTime int64              `serialize:"true" json:"creationTime"`
-	ProducingNode string            `serialize:"true" json:"producingNode"`
+	PrntID        ids.ID                `serialize:"true" json:"parentID"` // parent's ID
+	Hght          uint64                `serialize:"true" json:"height"`   // This block's height. The genesis block is at height 0.
+	ZBlk          nativejson.RawMessage `serialize:"true" json:"zblock"`   // zcash block
+	CreationTime  int64                 `serialize:"true" json:"creationTime"`
+	ProducingNode string                `serialize:"true" json:"producingNode"`
 
 	id     ids.ID         // hold this block's ID
 	bytes  []byte         // this block's encoded bytes
@@ -48,9 +48,14 @@ type Block struct {
 func (b *Block) Verify() error {
 	log.Debug("Block.Verify: begin", b.LogInfo()...)
 	if b.ZBlock() != nil {
-		err := b.vm.zc.ValidateBlock(b.ZBlock()) 
+		agg, err := findNotAcceptedAncestorBlocks(b)
 		if err != nil {
-			log.Warn("Validate block returned with an error", "error", err)
+			log.Warn("findNotAcceptedAncestorBlocks returned with an error", "error", err)
+			return err
+		}
+		err = b.vm.zc.ValidateBlocks(buildBlockArray(agg))
+		if err != nil {
+			log.Warn("Validate blocks returned with an error", "error", err)
 			return err
 		}
 	} else if b.Height() > 0 {
@@ -61,6 +66,36 @@ func (b *Block) Verify() error {
 	b.vm.verifiedBlocks[b.ID()] = b
 
 	return nil
+}
+
+func findNotAcceptedAncestorBlocks(b *Block) (agg [][]byte, err error) {
+	agg = append(agg, b.ZBlock())
+	pb, err := b.vm.getBlock(b.Parent())
+	if err != nil {
+		log.Warn("Get parent block returned with an error", "error", err)
+		return
+	}
+	if pb.Status() != choices.Accepted {
+		var ancestors [][]byte
+		ancestors, err = findNotAcceptedAncestorBlocks(pb)
+		if err != nil {
+			return
+		}
+		agg = append(agg, ancestors...)
+	}
+	return
+}
+
+func buildBlockArray(blocks [][]byte) (dst []byte) {
+	dst = []byte{91} // opening bracket
+	for i, b := range blocks {
+		if i > 0 {
+			dst = append(dst, 44) // add comma
+		}
+		dst = append(dst, b...)
+	}
+	dst = append(dst, 93) // closing bracket
+	return
 }
 
 // Initialize sets [b.bytes] to [bytes], [b.id] to hash([b.bytes]),
@@ -131,7 +166,7 @@ func (b *Block) Height() uint64 { return b.Hght }
 
 // Timestamp returns this block's time. The genesis block has time 0. For now, return
 // the root timesamp (2022-01-01) for genesis plus one second for each additional block
-func (b *Block) Timestamp() time.Time { 
+func (b *Block) Timestamp() time.Time {
 	return time.Unix(b.CreationTime, 0)
 }
 
@@ -150,7 +185,7 @@ func (b *Block) SetStatus(status choices.Status) { b.status = status }
 
 func (b *Block) LogInfo() []interface{} {
 	return []interface{}{
-		"blockId", b.ID(), 
+		"blockId", b.ID(),
 		"blockStatus", b.Status().String(),
 		"blockTimestamp", b.Timestamp(),
 		"blockHeight", b.Height(),

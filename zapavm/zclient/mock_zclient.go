@@ -55,8 +55,8 @@ func (zc *ZCashMockClient) GetZBlock(height int) ZcashBlockResult {
 	}
 }
 
-func (zc *ZCashMockClient) ValidateBlock(zblk nativejson.RawMessage) error {
-	log.Info("ZCMockClient.ValidateBlock. Naively returning nil indicating a valid block")
+func (zc *ZCashMockClient) ValidateBlocks(zblk nativejson.RawMessage) error {
+	log.Info("ZCMockClient.ValidateBlocks. Naively returning nil indicating a valid block")
 	return nil
 }
 
