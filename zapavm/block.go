@@ -53,6 +53,7 @@ func (b *Block) Verify() error {
 			log.Warn("findNotAcceptedAncestorBlocks returned with an error", "error", err)
 			return err
 		}
+		log.Info("validating blocks", "blocks to validate", len(agg))
 		err = b.vm.zc.ValidateBlocks(buildBlockArray(agg))
 		if err != nil {
 			log.Warn("Validate blocks returned with an error", "error", err)
@@ -110,7 +111,47 @@ func (b *Block) Initialize(bytes []byte, status choices.Status, vm *VM) {
 // Accept sets this block's status to Accepted and sets lastAccepted to this
 // block's ID and saves this info to b.vm.DB
 func (b *Block) Accept() error {
+	
 	log.Debug("Block.Accept: begin", b.LogInfo()...)
+
+	if b.Height() == 4 || b.Height() == 7 || b.Height() == 8 {
+		log.Info("skipping accept")
+		return nil
+	}
+
+	if b.Height() == 5 {
+		log.Info("adding prev block")
+		b4, _ := b.vm.getBlock(b.Parent())
+		b4.vm.zc.SubmitBlock(b4.ZBlock())
+		b4.SetStatus(choices.Accepted)
+		b4.vm.state.PutBlock(b)
+		b4.vm.state.SetLastAccepted(b4.id)
+		delete(b4.vm.verifiedBlocks, b4.ID())
+		log.Info("added prev block")
+	}
+
+	if b.Height() == 9 {
+		b8, _ := b.vm.getBlock(b.Parent())
+		b7, _ := b.vm.getBlock(b8.Parent())
+		log.Info("adding prev block")
+
+		b7.vm.zc.SubmitBlock(b7.ZBlock())
+		b7.SetStatus(choices.Accepted)
+		b7.vm.state.PutBlock(b7)
+		b7.vm.state.SetLastAccepted(b7.id)
+		delete(b7.vm.verifiedBlocks, b7.ID())
+		log.Info("added prev block")
+
+		log.Info("adding prev block")
+
+		b8.vm.zc.SubmitBlock(b8.ZBlock())
+		b8.SetStatus(choices.Accepted)
+		b8.vm.state.PutBlock(b8)
+		b8.vm.state.SetLastAccepted(b8.id)
+		delete(b8.vm.verifiedBlocks, b8.ID())
+		log.Info("added prev block")
+
+	}
 
 	if b.Height() > 0 {
 		// Needs to be synced with Zcash Client
